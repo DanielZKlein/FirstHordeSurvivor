@@ -2,6 +2,7 @@
 #include "Kismet/GameplayStatics.h"
 #include "GameFramework/Character.h"
 #include "NiagaraComponent.h"
+#include "Components/PointLightComponent.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "XPGemSubsystem.h"
 #include "SurvivorCharacter.h"
@@ -18,11 +19,20 @@ AXPGem::AXPGem()
     TrailComp->SetupAttachment(RootComponent);
     TrailComp->SetAutoActivate(false);
 
-	FlyAwayForce = 300.0f;
+    LightComp = CreateDefaultSubobject<UPointLightComponent>(TEXT("LightComp"));
+    LightComp->SetupAttachment(RootComponent);
+    LightComp->SetRelativeLocation(FVector::ZeroVector); // Center of mesh
+    LightComp->SetCastShadows(false); // No shadows - light shines through the gem
+    LightComp->SetIntensity(1000.0f);
+    LightComp->SetAttenuationRadius(200.0f);
+
+	FlyAwayForce = 800.0f;
 	MagnetAcceleration = 2000.0f;
-	MaxSpeed = 1500.0f;
+	MaxSpeed = 3000.0f;
 	CollectDistance = 50.0f;
-    SpawnDuration = 0.5f;
+    SpawnDuration = 0.8f;
+    FleeDuration = 0.35f;
+    FleeForce = 600.0f;
 
 	State = EXPGemState::Inactive;
 }
@@ -41,13 +51,18 @@ void AXPGem::FindTarget()
 void AXPGem::Initialize(int32 InValue, const FVector& StartLocation)
 {
     XPValue = InValue;
-    SetActorLocation(StartLocation);
+
+    // Lower spawn position closer to ground (enemy location is at capsule center)
+    FVector AdjustedLocation = StartLocation;
+    AdjustedLocation.Z -= 100.0f;
+    SetActorLocation(AdjustedLocation);
+
     SetActorHiddenInGame(false);
     SetActorTickEnabled(true);
-    
-    // Random fly away direction (up + random horizontal)
+
+    // Random fly away direction (biased upward for a satisfying pop)
     FVector RandomDir = FMath::VRand();
-    RandomDir.Z = FMath::Abs(RandomDir.Z) + 0.5f; // Bias upwards
+    RandomDir.Z = FMath::Abs(RandomDir.Z) + 1.0f; // Strong upward bias
     Velocity = RandomDir.GetSafeNormal() * FlyAwayForce;
 
     State = EXPGemState::Spawning;
@@ -96,6 +111,12 @@ void AXPGem::SetVisuals(const FXPGemData& VisualData)
     {
         TrailComp->Deactivate();
     }
+
+    // Configure point light
+    LightComp->SetLightColor(VisualData.Color);
+    LightComp->SetIntensity(VisualData.LightIntensity);
+    LightComp->SetAttenuationRadius(VisualData.LightRadius);
+    LightComp->SetVisibility(true);
 }
 
 void AXPGem::Deactivate()
@@ -104,6 +125,7 @@ void AXPGem::Deactivate()
     SetActorHiddenInGame(true);
     SetActorTickEnabled(false);
     TrailComp->Deactivate();
+    LightComp->SetVisibility(false);
 }
 
 void AXPGem::Tick(float DeltaTime)
@@ -132,24 +154,44 @@ void AXPGem::Tick(float DeltaTime)
         if (TargetActor)
         {
             float DistSq = FVector::DistSquared(GetActorLocation(), TargetActor->GetActorLocation());
-            
+
             // Check pickup range from player
-            // We need to cast to get the dynamic range, or use a default
             float PickupRange = 500.0f;
             if (ASurvivorCharacter* Player = Cast<ASurvivorCharacter>(TargetActor))
             {
-                // We will add this property to SurvivorCharacter later
-                 PickupRange = Player->PickupRange;
+                PickupRange = Player->PickupRange;
             }
-            
+
             if (DistSq < PickupRange * PickupRange)
             {
-                State = EXPGemState::Magnetizing;
-                CurrentSpeed = 0.0f; // Reset speed for acceleration
+                // Start fleeing AWAY from player first
+                State = EXPGemState::Fleeing;
+                FleeTimer = 0.0f;
+
+                // Calculate direction away from player (with upward bias for drama)
+                FVector FleeDir = (GetActorLocation() - TargetActor->GetActorLocation()).GetSafeNormal();
+                FleeDir.Z = FMath::Abs(FleeDir.Z) + 0.5f; // Pop up while fleeing
+                Velocity = FleeDir.GetSafeNormal() * FleeForce;
             }
         }
     }
-    
+    else if (State == EXPGemState::Fleeing)
+    {
+        // Dramatically move away from player before reversing
+        FleeTimer += DeltaTime;
+
+        // Apply drag to slow down the flee
+        Velocity = FMath::VInterpTo(Velocity, FVector::ZeroVector, DeltaTime, 4.0f);
+        AddActorWorldOffset(Velocity * DeltaTime);
+
+        if (FleeTimer >= FleeDuration)
+        {
+            // Now magnetize toward player
+            State = EXPGemState::Magnetizing;
+            CurrentSpeed = 0.0f;
+        }
+    }
+
     if (State == EXPGemState::Magnetizing)
     {
         if (TargetActor)

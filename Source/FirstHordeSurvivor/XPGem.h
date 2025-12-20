@@ -6,6 +6,7 @@
 
 class USphereComponent;
 class UNiagaraComponent;
+class UPointLightComponent;
 
 UENUM(BlueprintType)
 enum class EXPGemState : uint8
@@ -13,6 +14,7 @@ enum class EXPGemState : uint8
 	Inactive,
 	Spawning,
 	Idle,
+	Fleeing,      // Brief dramatic push away from player when entering pickup range
 	Magnetizing,
 	Collected
 };
@@ -37,6 +39,14 @@ struct FXPGemData
 	// Multiplier for emissive brightness (higher = brighter glow)
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	float EmissiveStrength = 20.0f;
+
+	// Point light intensity (how bright the light is)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	float LightIntensity = 1000.0f;
+
+	// Point light radius (how far the light reaches)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	float LightRadius = 200.0f;
 
     // Optional particle system for high value gems
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
@@ -70,6 +80,9 @@ protected:
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
     UNiagaraComponent* TrailComp;
 
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
+    UPointLightComponent* LightComp;
+
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "State")
 	int32 XPValue;
 
@@ -94,9 +107,18 @@ protected:
 
     // Time to wait before magnetizing (after spawn)
     float SpawnTimer;
-    
+
     UPROPERTY(EditDefaultsOnly, Category = "Movement")
     float SpawnDuration;
+
+    // Flee away from player before magnetizing
+    float FleeTimer;
+
+    UPROPERTY(EditDefaultsOnly, Category = "Movement")
+    float FleeDuration;
+
+    UPROPERTY(EditDefaultsOnly, Category = "Movement")
+    float FleeForce;
 
     // Reference to player
     UPROPERTY()

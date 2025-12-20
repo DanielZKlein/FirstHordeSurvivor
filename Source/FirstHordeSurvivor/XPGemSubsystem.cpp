@@ -22,45 +22,55 @@ void UXPGemSubsystem::InitializeDefaultVisuals()
     FXPGemData Gem1;
     Gem1.Mesh = DebrisC;
     Gem1.Material = GemMaterial;
-    Gem1.Scale = 5.0f;
+    Gem1.Scale = 3.0f;
     Gem1.Color = FLinearColor(0.16f, 0.16f, 0.16f);
     Gem1.EmissiveStrength = 15.0f;
+    Gem1.LightIntensity = 500.0f;
+    Gem1.LightRadius = 200.0f;
     DefaultVisuals.Add(1, Gem1);
 
     // 5 XP - White gem
     FXPGemData Gem5;
     Gem5.Mesh = DebrisB;
     Gem5.Material = GemMaterial;
-    Gem5.Scale = 5.0f;
+    Gem5.Scale = 4.5f;
     Gem5.Color = FLinearColor(2.0f, 2.0f, 2.0f);
     Gem5.EmissiveStrength = 20.0f;
+    Gem5.LightIntensity = 800.0f;
+    Gem5.LightRadius = 260.0f;
     DefaultVisuals.Add(5, Gem5);
 
     // 20 XP - Yellow gem
     FXPGemData Gem20;
     Gem20.Mesh = DebrisB;
     Gem20.Material = GemMaterial;
-    Gem20.Scale = 5.0f;
+    Gem20.Scale = 6.0f;
     Gem20.Color = FLinearColor(1.0f, 0.96f, 0.0f);
     Gem20.EmissiveStrength = 30.0f;
+    Gem20.LightIntensity = 1200.0f;
+    Gem20.LightRadius = 325.0f;
     DefaultVisuals.Add(20, Gem20);
 
     // 50 XP - Blue gem (bigger chunk)
     FXPGemData Gem50;
     Gem50.Mesh = DebrisA;
     Gem50.Material = GemMaterial;
-    Gem50.Scale = 5.0f;
+    Gem50.Scale = 8.0f;
     Gem50.Color = FLinearColor(0.1f, 0.4f, 1.0f);
     Gem50.EmissiveStrength = 40.0f;
+    Gem50.LightIntensity = 2000.0f;
+    Gem50.LightRadius = 455.0f;
     DefaultVisuals.Add(50, Gem50);
 
     // 100 XP - Red gem (biggest chunk)
     FXPGemData Gem100;
     Gem100.Mesh = DebrisA;
     Gem100.Material = GemMaterial;
-    Gem100.Scale = 5.0f;
+    Gem100.Scale = 10.0f;
     Gem100.Color = FLinearColor(1.0f, 0.03f, 0.0f);
     Gem100.EmissiveStrength = 50.0f;
+    Gem100.LightIntensity = 3000.0f;
+    Gem100.LightRadius = 650.0f;
     DefaultVisuals.Add(100, Gem100);
 
     // Default fallback (green)
@@ -69,6 +79,8 @@ void UXPGemSubsystem::InitializeDefaultVisuals()
     DefaultFallback.Scale = 5.0f;
     DefaultFallback.Color = FLinearColor(0.2f, 1.0f, 0.3f);
     DefaultFallback.EmissiveStrength = 20.0f;
+    DefaultFallback.LightIntensity = 1000.0f;
+    DefaultFallback.LightRadius = 260.0f;
 }
 
 FXPGemData UXPGemSubsystem::GetVisualDataForValue(int32 Value) const
