@@ -1,0 +1,67 @@
+# Unreal Engine generated folders
+Binaries/
+DerivedDataCache/
+Intermediate/
+Saved/
+Build/
+.vsconfig
+*.sln
+
+# Visual Studio / Rider
+.vs/
+.idea/
+*.suo
+*.user
+*.vcxproj*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# ======================================
+# LARGE MARKETPLACE / FAB CONTENT
+# (Placeholder assets - OK to lose)
+# ======================================
+Content/FabStuff/
+Content/Medieval_Sewer_Dungeon/
+Content/MixedVFX/
+Content/MSPresets/
+Content/MsvFx_Niagara_Explosion_Pack_01/
+Content/Pack_Simple_Particle_Burst/
+Content/Realistic_Starter_VFX_Pack_Vol2/
+Content/sA_PickupSet_1/
+Content/Scene_Bazaar_Vol1/
+Content/Scene_Junkyard/
+Content/Scene_Warehouse/
+Content/Vefects/
+Content/VFX_Destruction/
+
+# External actors/objects (World Partition)
+Content/__ExternalActors__/
+Content/__ExternalObjects__/
+
+# UE default/editor folders
+Content/Collections/
+Content/Developers/
+Content/EditorBlueprintResources/
+Content/EngineSky/
+
+# ======================================
+# KEEP THESE (game logic & config)
+# ======================================
+# !Content/Enemies/
+# !Content/Gamemode/
+# !Content/Levels/
+# !Content/Player/
+# !Content/Rocket/
+# !Content/Sound/
+# !Content/UI/
+# !Content/Weapons/
+# !Content/XPGems/
+# !Content/BlueprintLibraries/
+# !Source/
+# !Config/
+# !*.uproject
+
+# Debug screenshots
+*.png
