@@ -302,8 +302,39 @@ void ASurvivorCharacter::OnAttributeChanged(UAttributeComponent* Component, bool
 void ASurvivorCharacter::AddXP(int32 Amount)
 {
     CurrentXP += Amount;
-    OnXPAdded(CurrentXP);
-    // TODO: Handle leveling up logic here or in BP via the event
+
+    // Check for level ups (can level multiple times from one XP gain)
+    int32 XPNeeded = GetXPForCurrentLevel();
+    while (CurrentXP >= XPNeeded)
+    {
+        CurrentXP -= XPNeeded;
+        CurrentLevel++;
+        OnLevelUp(CurrentLevel);
+        XPNeeded = GetXPForCurrentLevel();
+    }
+
+    OnXPAdded(CurrentXP, CurrentLevel, GetLevelProgress());
+}
+
+int32 ASurvivorCharacter::GetXPForLevel(int32 Level) const
+{
+    // Formula: XP = Base * Level^Exponent + Linear * Level
+    return FMath::FloorToInt(
+        XPCurveBase * FMath::Pow(static_cast<float>(Level), XPCurveExponent)
+        + XPCurveLinear * static_cast<float>(Level)
+    );
+}
+
+int32 ASurvivorCharacter::GetXPForCurrentLevel() const
+{
+    return GetXPForLevel(CurrentLevel);
+}
+
+float ASurvivorCharacter::GetLevelProgress() const
+{
+    const int32 XPNeeded = GetXPForCurrentLevel();
+    if (XPNeeded <= 0) return 0.0f;
+    return static_cast<float>(CurrentXP) / static_cast<float>(XPNeeded);
 }
 
 void ASurvivorCharacter::DebugKillNearby()

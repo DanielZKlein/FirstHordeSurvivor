@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>XP Curve Tuner - FirstHordeSurvivor</title>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            background: #1a1a2e;
+            color: #eee;
+            margin: 0;
+            padding: 20px;
+            min-height: 100vh;
+        }
+        h1 { color: #00d4ff; margin-bottom: 5px; }
+        .subtitle { color: #888; margin-bottom: 20px; }
+        .container {
+            display: grid;
+            grid-template-columns: 320px 1fr;
+            gap: 20px;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        .controls {
+            background: #252542;
+            padding: 20px;
+            border-radius: 12px;
+            height: fit-content;
+        }
+        .control-group {
+            margin-bottom: 20px;
+        }
+        .control-group label {
+            display: block;
+            margin-bottom: 5px;
+            color: #aaa;
+            font-size: 13px;
+        }
+        .control-group .value {
+            color: #00d4ff;
+            font-weight: bold;
+            float: right;
+        }
+        input[type="range"] {
+            width: 100%;
+            margin: 5px 0;
+            accent-color: #00d4ff;
+        }
+        .formula {
+            background: #1a1a2e;
+            padding: 12px;
+            border-radius: 8px;
+            font-family: 'Consolas', monospace;
+            font-size: 12px;
+            margin-bottom: 20px;
+            border: 1px solid #333;
+        }
+        .formula-label { color: #888; font-size: 11px; margin-bottom: 5px; }
+        .charts {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        .chart-container {
+            background: #252542;
+            padding: 20px;
+            border-radius: 12px;
+        }
+        .chart-title {
+            font-size: 14px;
+            color: #888;
+            margin-bottom: 10px;
+        }
+        canvas {
+            width: 100%;
+            height: 250px;
+        }
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            margin-top: 20px;
+        }
+        .stat {
+            background: #1a1a2e;
+            padding: 12px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        .stat-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #00d4ff;
+        }
+        .stat-label {
+            font-size: 11px;
+            color: #888;
+            margin-top: 4px;
+        }
+        .level-table {
+            background: #252542;
+            padding: 20px;
+            border-radius: 12px;
+            margin-top: 20px;
+        }
+        .level-table table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+        .level-table th, .level-table td {
+            padding: 8px 12px;
+            text-align: right;
+            border-bottom: 1px solid #333;
+        }
+        .level-table th {
+            color: #888;
+            font-weight: normal;
+        }
+        .level-table td:first-child, .level-table th:first-child {
+            text-align: left;
+        }
+        .level-table tr:hover td {
+            background: #1a1a2e;
+        }
+        .cpp-output {
+            background: #1a1a2e;
+            padding: 15px;
+            border-radius: 8px;
+            font-family: 'Consolas', monospace;
+            font-size: 12px;
+            margin-top: 20px;
+            border: 1px solid #333;
+            white-space: pre-wrap;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        .copy-btn {
+            background: #00d4ff;
+            color: #1a1a2e;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+            margin-top: 10px;
+        }
+        .copy-btn:hover { background: #00b8e0; }
+        .preset-btn {
+            background: #333;
+            color: #eee;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            margin-right: 5px;
+            margin-bottom: 5px;
+        }
+        .preset-btn:hover { background: #444; }
+        .presets { margin-bottom: 20px; }
+    </style>
+</head>
+<body>
+    <h1>XP Curve Tuner</h1>
+    <p class="subtitle">FirstHordeSurvivor - Experiment with leveling curves</p>
+
+    <div class="container">
+        <div class="controls">
+            <div class="presets">
+                <button class="preset-btn" onclick="applyPreset('gentle')">Gentle</button>
+                <button class="preset-btn" onclick="applyPreset('standard')">Standard</button>
+                <button class="preset-btn" onclick="applyPreset('steep')">Steep</button>
+                <button class="preset-btn" onclick="applyPreset('verysteep')">Very Steep</button>
+            </div>
+
+            <div class="formula-label">Formula:</div>
+            <div class="formula" id="formula">XP = Base × Level^Exp + Linear × Level</div>
+
+            <div class="control-group">
+                <label>Base XP <span class="value" id="baseVal">10</span></label>
+                <input type="range" id="base" min="1" max="50" value="10" oninput="updateCurve()">
+            </div>
+
+            <div class="control-group">
+                <label>Exponent <span class="value" id="expVal">1.8</span></label>
+                <input type="range" id="exp" min="1" max="3" step="0.05" value="1.8" oninput="updateCurve()">
+            </div>
+
+            <div class="control-group">
+                <label>Linear Component <span class="value" id="linearVal">5</span></label>
+                <input type="range" id="linear" min="0" max="50" value="5" oninput="updateCurve()">
+            </div>
+
+            <div class="control-group">
+                <label>Max Level to Show <span class="value" id="maxLevelVal">30</span></label>
+                <input type="range" id="maxLevel" min="10" max="100" value="30" oninput="updateCurve()">
+            </div>
+
+            <div class="stats">
+                <div class="stat">
+                    <div class="stat-value" id="xpLevel5">-</div>
+                    <div class="stat-label">XP for Lvl 5</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value" id="xpLevel10">-</div>
+                    <div class="stat-label">XP for Lvl 10</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value" id="xpLevel20">-</div>
+                    <div class="stat-label">XP for Lvl 20</div>
+                </div>
+            </div>
+
+            <div class="stats">
+                <div class="stat">
+                    <div class="stat-value" id="totalLevel10">-</div>
+                    <div class="stat-label">Total to Lvl 10</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value" id="totalLevel20">-</div>
+                    <div class="stat-label">Total to Lvl 20</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value" id="ratio">-</div>
+                    <div class="stat-label">Lvl20/Lvl5 ratio</div>
+                </div>
+            </div>
+
+            <div class="cpp-output" id="cppCode">// C++ code will appear here</div>
+            <button class="copy-btn" onclick="copyCode()">Copy C++ Code</button>
+        </div>
+
+        <div class="charts">
+            <div class="chart-container">
+                <div class="chart-title">XP Required Per Level</div>
+                <canvas id="perLevelChart"></canvas>
+            </div>
+
+            <div class="chart-container">
+                <div class="chart-title">Cumulative XP to Reach Level</div>
+                <canvas id="cumulativeChart"></canvas>
+            </div>
+
+            <div class="level-table">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Level</th>
+                            <th>XP Required</th>
+                            <th>Cumulative XP</th>
+                            <th>Kills (~15 XP avg)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="levelTableBody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const presets = {
+            gentle: { base: 8, exp: 1.5, linear: 10 },
+            standard: { base: 10, exp: 1.8, linear: 5 },
+            steep: { base: 15, exp: 2.0, linear: 0 },
+            verysteep: { base: 10, exp: 2.3, linear: 0 }
+        };
+
+        function applyPreset(name) {
+            const p = presets[name];
+            document.getElementById('base').value = p.base;
+            document.getElementById('exp').value = p.exp;
+            document.getElementById('linear').value = p.linear;
+            updateCurve();
+        }
+
+        function calcXP(level, base, exp, linear) {
+            return Math.floor(base * Math.pow(level, exp) + linear * level);
+        }
+
+        function formatNum(n) {
+            if (n >= 1000000) return (n/1000000).toFixed(1) + 'M';
+            if (n >= 1000) return (n/1000).toFixed(1) + 'K';
+            return n.toString();
+        }
+
+        function updateCurve() {
+            const base = parseFloat(document.getElementById('base').value);
+            const exp = parseFloat(document.getElementById('exp').value);
+            const linear = parseFloat(document.getElementById('linear').value);
+            const maxLevel = parseInt(document.getElementById('maxLevel').value);
+
+            document.getElementById('baseVal').textContent = base;
+            document.getElementById('expVal').textContent = exp.toFixed(2);
+            document.getElementById('linearVal').textContent = linear;
+            document.getElementById('maxLevelVal').textContent = maxLevel;
+
+            // Calculate XP values
+            const levels = [];
+            const xpPerLevel = [];
+            const cumulative = [];
+            let total = 0;
+
+            for (let i = 1; i <= maxLevel; i++) {
+                const xp = calcXP(i, base, exp, linear);
+                total += xp;
+                levels.push(i);
+                xpPerLevel.push(xp);
+                cumulative.push(total);
+            }
+
+            // Update stats
+            document.getElementById('xpLevel5').textContent = formatNum(xpPerLevel[4] || 0);
+            document.getElementById('xpLevel10').textContent = formatNum(xpPerLevel[9] || 0);
+            document.getElementById('xpLevel20').textContent = formatNum(xpPerLevel[19] || 0);
+            document.getElementById('totalLevel10').textContent = formatNum(cumulative[9] || 0);
+            document.getElementById('totalLevel20').textContent = formatNum(cumulative[19] || 0);
+
+            const ratio = xpPerLevel[19] && xpPerLevel[4] ? (xpPerLevel[19] / xpPerLevel[4]).toFixed(1) : '-';
+            document.getElementById('ratio').textContent = ratio + 'x';
+
+            // Update charts
+            drawChart('perLevelChart', levels, xpPerLevel, '#00d4ff', 'XP');
+            drawChart('cumulativeChart', levels, cumulative, '#ff6b6b', 'Total XP');
+
+            // Update table
+            const tbody = document.getElementById('levelTableBody');
+            tbody.innerHTML = '';
+            for (let i = 0; i < Math.min(maxLevel, 30); i++) {
+                const tr = document.createElement('tr');
+                const kills = Math.ceil(cumulative[i] / 15);
+                tr.innerHTML = `
+                    <td>Level ${i + 1}</td>
+                    <td>${xpPerLevel[i].toLocaleString()}</td>
+                    <td>${cumulative[i].toLocaleString()}</td>
+                    <td>~${kills}</td>
+                `;
+                tbody.appendChild(tr);
+            }
+
+            // Update C++ code
+            document.getElementById('cppCode').textContent = generateCppCode(base, exp, linear);
+        }
+
+        function drawChart(canvasId, labels, data, color, label) {
+            const canvas = document.getElementById(canvasId);
+            const ctx = canvas.getContext('2d');
+            const rect = canvas.getBoundingClientRect();
+            canvas.width = rect.width * 2;
+            canvas.height = 500;
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            const padding = { top: 20, right: 40, bottom: 40, left: 70 };
+            const width = canvas.width - padding.left - padding.right;
+            const height = canvas.height - padding.top - padding.bottom;
+
+            const maxVal = Math.max(...data);
+            const minVal = 0;
+
+            // Grid
+            ctx.strokeStyle = '#333';
+            ctx.lineWidth = 1;
+            for (let i = 0; i <= 5; i++) {
+                const y = padding.top + (height / 5) * i;
+                ctx.beginPath();
+                ctx.moveTo(padding.left, y);
+                ctx.lineTo(padding.left + width, y);
+                ctx.stroke();
+
+                const val = maxVal - (maxVal / 5) * i;
+                ctx.fillStyle = '#666';
+                ctx.font = '20px Segoe UI';
+                ctx.textAlign = 'right';
+                ctx.fillText(formatNum(Math.round(val)), padding.left - 10, y + 5);
+            }
+
+            // Bars
+            const barWidth = width / data.length * 0.8;
+            const gap = width / data.length * 0.2;
+
+            ctx.fillStyle = color;
+            for (let i = 0; i < data.length; i++) {
+                const x = padding.left + (width / data.length) * i + gap / 2;
+                const barHeight = (data[i] / maxVal) * height;
+                const y = padding.top + height - barHeight;
+                ctx.fillRect(x, y, barWidth, barHeight);
+            }
+
+            // X-axis labels
+            ctx.fillStyle = '#666';
+            ctx.font = '18px Segoe UI';
+            ctx.textAlign = 'center';
+            const step = Math.ceil(data.length / 15);
+            for (let i = 0; i < data.length; i += step) {
+                const x = padding.left + (width / data.length) * i + barWidth / 2;
+                ctx.fillText(labels[i], x, canvas.height - 10);
+            }
+        }
+
+        function generateCppCode(base, exp, linear) {
+            return `// XP Curve Parameters
+// Base: ${base}, Exponent: ${exp}, Linear: ${linear}
+
+// In SurvivorCharacter.h - add these properties:
+UPROPERTY(EditDefaultsOnly, Category = "Leveling")
+float XPCurveBase = ${base}.0f;
+
+UPROPERTY(EditDefaultsOnly, Category = "Leveling")
+float XPCurveExponent = ${exp}f;
+
+UPROPERTY(EditDefaultsOnly, Category = "Leveling")
+float XPCurveLinear = ${linear}.0f;
+
+// Function to calculate XP needed for a level:
+int32 ASurvivorCharacter::GetXPForLevel(int32 Level) const
+{
+    return FMath::FloorToInt(
+        XPCurveBase * FMath::Pow(Level, XPCurveExponent)
+        + XPCurveLinear * Level
+    );
+}`;
+        }
+
+        function copyCode() {
+            const code = document.getElementById('cppCode').textContent;
+            navigator.clipboard.writeText(code);
+        }
+
+        // Initial render
+        updateCurve();
+    </script>
+</body>
+</html>

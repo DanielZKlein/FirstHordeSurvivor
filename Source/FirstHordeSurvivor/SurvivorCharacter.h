@@ -88,8 +88,28 @@ public:
     UFUNCTION(BlueprintCallable, Category = "XP")
     void AddXP(int32 Amount);
 
+    UFUNCTION(BlueprintPure, Category = "XP")
+    int32 GetXPForLevel(int32 Level) const;
+
+    UFUNCTION(BlueprintPure, Category = "XP")
+    int32 GetXPForCurrentLevel() const;
+
+    UFUNCTION(BlueprintPure, Category = "XP")
+    float GetLevelProgress() const;
+
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "XP")
     float PickupRange = 500.0f;
+
+    // XP Curve Parameters - tune these to adjust leveling speed
+    // Formula: XP = Base * Level^Exponent + Linear * Level
+    UPROPERTY(EditDefaultsOnly, Category = "XP|Curve")
+    float XPCurveBase = 20.0f;
+
+    UPROPERTY(EditDefaultsOnly, Category = "XP|Curve")
+    float XPCurveExponent = 1.7f;
+
+    UPROPERTY(EditDefaultsOnly, Category = "XP|Curve")
+    float XPCurveLinear = 10.0f;
 
 protected:
 	void Move(const FInputActionValue& Value);
@@ -107,7 +127,10 @@ protected:
 	void OnHealthUpdated();
     
     UFUNCTION(BlueprintImplementableEvent, Category = "Events")
-    void OnXPAdded(int32 NewXP);
+    void OnXPAdded(int32 NewXP, int32 Level, float LevelProgress);
+
+    UFUNCTION(BlueprintImplementableEvent, Category = "Events")
+    void OnLevelUp(int32 NewLevel);
 
 protected:
 	// Legacy support for UI
@@ -118,7 +141,10 @@ protected:
 	float MaxHealth;
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "XP")
-    int32 CurrentXP;
+    int32 CurrentXP = 0;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "XP")
+    int32 CurrentLevel = 1;
 
 private:
 	FVector LastFrameVelocity;
