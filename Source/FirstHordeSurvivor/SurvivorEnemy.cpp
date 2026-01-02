@@ -83,6 +83,9 @@ void ASurvivorEnemy::InitializeFromData()
 			EnemyMeshComp->SetMaterial(0, EnemyData->EnemyMaterial.LoadSynchronous());
 		}
 
+		// Apply mesh scale
+		EnemyMeshComp->SetWorldScale3D(FVector(EnemyData->MeshScale));
+
 		// Apply Stats
 		AttributeComp->MaxHealth.BaseValue = EnemyData->BaseHealth;
 		AttributeComp->MaxSpeed.BaseValue = EnemyData->MoveSpeed;

@@ -12,6 +12,7 @@ Simple chase-and-attack enemies optimized for large hordes with RVO avoidance.
 ```cpp
 TSoftObjectPtr<UStaticMesh> EnemyMesh       // Visual mesh (async loadable)
 TSoftObjectPtr<UMaterialInterface> EnemyMaterial  // Material
+float MeshScale = 1.0f                      // Visual scale multiplier
 float BaseHealth = 100.0f                   // Max HP
 float BaseDamage = 10.0f                    // Damage per attack
 float MoveSpeed = 400.0f                    // Movement speed
