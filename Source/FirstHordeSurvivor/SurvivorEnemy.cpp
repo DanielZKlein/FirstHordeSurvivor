@@ -6,8 +6,8 @@
 #include "Kismet/GameplayStatics.h"
 
 #include "Components/StaticMeshComponent.h"
-#include "Components/StaticMeshComponent.h"
 #include "Components/SphereComponent.h"
+#include "Materials/MaterialInstanceDynamic.h"
 #include "XPGemSubsystem.h"
 
 ASurvivorEnemy::ASurvivorEnemy()
@@ -80,11 +80,18 @@ void ASurvivorEnemy::InitializeFromData()
 		}
 		if (!EnemyData->EnemyMaterial.IsNull())
 		{
-			EnemyMeshComp->SetMaterial(0, EnemyData->EnemyMaterial.LoadSynchronous());
+			UMaterialInterface* BaseMaterial = EnemyData->EnemyMaterial.LoadSynchronous();
+			UMaterialInstanceDynamic* DynMaterial = UMaterialInstanceDynamic::Create(BaseMaterial, this);
+			DynMaterial->SetVectorParameterValue(TEXT("Color"), EnemyData->EnemyColor);
+			DynMaterial->SetScalarParameterValue(TEXT("EmissiveStrength"), EnemyData->EmissiveStrength);
+			EnemyMeshComp->SetMaterial(0, DynMaterial);
 		}
 
 		// Apply mesh scale
 		EnemyMeshComp->SetWorldScale3D(FVector(EnemyData->MeshScale));
+
+		// Render to custom depth for post-process outline
+		EnemyMeshComp->SetRenderCustomDepth(true);
 
 		// Apply Stats
 		AttributeComp->MaxHealth.BaseValue = EnemyData->BaseHealth;

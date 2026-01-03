@@ -22,6 +22,12 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Visuals")
 	float MeshScale = 1.0f;
 
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Visuals")
+	FLinearColor EnemyColor = FLinearColor(0.5f, 0.5f, 0.5f, 1.0f);
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Visuals", meta = (ClampMin = "0.0"))
+	float EmissiveStrength = 0.0f;
+
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Stats")
 	float BaseHealth = 100.0f;
 

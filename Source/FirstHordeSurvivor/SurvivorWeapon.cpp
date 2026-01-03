@@ -62,6 +62,9 @@ void ASurvivorWeapon::Fire()
         Rot.Yaw += FMath::RandRange(-HalfCone, HalfCone);
         
         FVector FinalDir = Rot.Vector();
+        FinalDir.Z = 0.0f;
+        FinalDir.Normalize();
+        Rot = FinalDir.Rotation();
 
         // Spawn Projectile
         FTransform SpawnTM(Rot, SpawnLocation);
@@ -99,7 +102,7 @@ AActor* ASurvivorWeapon::FindBestTarget()
 
     if (Enemies.Num() == 0)
     {
-        UE_LOG(LogTemp, Warning, TEXT("ASurvivorWeapon::FindBestTarget - No enemies found in world"));
+        //UE_LOG(LogTemp, Warning, TEXT("ASurvivorWeapon::FindBestTarget - No enemies found in world"));
         return nullptr;
     }
 
@@ -158,8 +161,8 @@ AActor* ASurvivorWeapon::FindBestTarget()
             DebugColor = FColor::Green;
         }
         
-        DrawDebugLine(GetWorld(), MyLoc, Enemy->GetActorLocation(), DebugColor, false, 0.1f, 0, 2.0f);
-        DrawDebugString(GetWorld(), Enemy->GetActorLocation() + FVector(0,0,50), DebugMsg, nullptr, DebugColor, 0.1f);
+        // DrawDebugLine(GetWorld(), MyLoc, Enemy->GetActorLocation(), DebugColor, false, 1.0f, 0, 2.0f);
+        // DrawDebugString(GetWorld(), Enemy->GetActorLocation() + FVector(0,0,50), DebugMsg, nullptr, DebugColor, 2.0f);
 
         if (TotalScore > BestScore)
         {
