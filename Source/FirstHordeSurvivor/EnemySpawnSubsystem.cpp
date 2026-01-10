@@ -3,7 +3,9 @@
 #include "Kismet/GameplayStatics.h"
 #include "GameFramework/Character.h"
 #include "Engine/World.h"
+#include "Engine/Brush.h"
 #include "TimerManager.h"
+#include "EngineUtils.h"
 
 void UEnemySpawnSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
@@ -70,13 +72,13 @@ void UEnemySpawnSubsystem::LoadDefaultAssets()
 	if (!EnemyDataTable)
 	{
 		// Load DT_Enemies DataTable
-		EnemyDataTable = LoadObject<UDataTable>(nullptr, TEXT("/Game/Enemies/DT_Enemies.DT_Enemies"));
+		EnemyDataTable = LoadObject<UDataTable>(nullptr, TEXT("/Game/Enemies/Data/DT_Enemies.DT_Enemies"));
 	}
 
 	if (!SpawnConfigTable)
 	{
 		// Load DT_EnemySpawns DataTable (optional)
-		SpawnConfigTable = LoadObject<UDataTable>(nullptr, TEXT("/Game/Enemies/DT_EnemySpawns.DT_EnemySpawns"));
+		SpawnConfigTable = LoadObject<UDataTable>(nullptr, TEXT("/Game/Enemies/Data/DT_EnemySpawns.DT_EnemySpawns"));
 	}
 }
 
@@ -99,6 +101,9 @@ void UEnemySpawnSubsystem::StartSpawning()
 		UE_LOG(LogTemp, Error, TEXT("EnemySpawnSubsystem: No EnemyDataTable set! Create DT_Enemies at /Game/Enemies/"));
 		return;
 	}
+
+	// Cache floor bounds for spawn location clamping
+	CacheFloorBounds();
 
 	// Pre-warm the pool
 	PreWarmPool(PreWarmCount);
@@ -279,7 +284,10 @@ FVector UEnemySpawnSubsystem::GetSpawnLocation()
 	Offset.Y = FMath::Sin(FMath::DegreesToRadians(Angle)) * Distance;
 	Offset.Z = 0.0f;
 
-	return PlayerLoc + Offset;
+	FVector SpawnLoc = PlayerLoc + Offset;
+
+	// Clamp to floor bounds if available
+	return ClampToFloorBounds(SpawnLoc);
 }
 
 FName UEnemySpawnSubsystem::SelectEnemyType()
@@ -363,4 +371,49 @@ float UEnemySpawnSubsystem::GetCurrentSpawnRate()
 
 	// Apply cap
 	return FMath::Min(BaseRate + ResponsiveBonus, MaxSpawnRate);
+}
+
+void UEnemySpawnSubsystem::CacheFloorBounds()
+{
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		return;
+	}
+
+	// Find the LevelFloor brush by name
+	for (TActorIterator<ABrush> It(World); It; ++It)
+	{
+		ABrush* Brush = *It;
+		if (Brush && Brush->GetName().Contains(TEXT("LevelFloor")))
+		{
+			FVector Origin, Extent;
+			Brush->GetActorBounds(false, Origin, Extent);
+			FloorBounds = FBox(Origin - Extent, Origin + Extent);
+			bHasFloorBounds = true;
+
+			UE_LOG(LogTemp, Log, TEXT("EnemySpawnSubsystem: Found LevelFloor bounds - Min(%s) Max(%s)"),
+				*FloorBounds.Min.ToString(), *FloorBounds.Max.ToString());
+			return;
+		}
+	}
+
+	UE_LOG(LogTemp, Warning, TEXT("EnemySpawnSubsystem: No LevelFloor brush found! Spawns will not be constrained."));
+}
+
+FVector UEnemySpawnSubsystem::ClampToFloorBounds(FVector Location)
+{
+	if (!bHasFloorBounds)
+	{
+		return Location;
+	}
+
+	// Apply safety margin
+	FBox SafeBounds = FloorBounds.ExpandBy(-FloorBoundsMargin);
+
+	// Clamp X and Y to safe bounds (keep original Z)
+	Location.X = FMath::Clamp(Location.X, SafeBounds.Min.X, SafeBounds.Max.X);
+	Location.Y = FMath::Clamp(Location.Y, SafeBounds.Min.Y, SafeBounds.Max.Y);
+
+	return Location;
 }

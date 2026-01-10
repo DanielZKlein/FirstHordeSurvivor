@@ -108,7 +108,13 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Location")
 	float SpawnMargin = 500.0f;  // Random variance in spawn distance
 
+	UPROPERTY(EditAnywhere, Category = "Location")
+	float FloorBoundsMargin = 200.0f;  // Safety margin inside floor bounds
+
 protected:
+	// Cached floor bounds
+	FBox FloorBounds;
+	bool bHasFloorBounds = false;
 	// Pool storage
 	UPROPERTY()
 	TArray<ASurvivorEnemy*> EnemyPool;
@@ -129,4 +135,6 @@ protected:
 	FName SelectEnemyType();
 	float GetCurrentSpawnRate();
 	void LoadDefaultAssets();
+	void CacheFloorBounds();
+	FVector ClampToFloorBounds(FVector Location);
 };

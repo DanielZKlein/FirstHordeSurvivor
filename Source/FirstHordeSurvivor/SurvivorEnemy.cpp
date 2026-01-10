@@ -150,6 +150,24 @@ void ASurvivorEnemy::Tick(float DeltaTime)
 
 		// Optional: Force rotation if AddMovementInput doesn't handle it fast enough
 		SetActorRotation(Direction.Rotation());
+
+		// Debug: Check if movement is actually happening
+		UCharacterMovementComponent* MoveComp = GetCharacterMovement();
+		if (MoveComp && MoveComp->Velocity.Size() < 1.0f && MoveComp->MaxWalkSpeed > 0.0f)
+		{
+			static float DebugTimer = 0.0f;
+			DebugTimer += DeltaTime;
+			if (DebugTimer > 2.0f)  // Log every 2 seconds
+			{
+				UE_LOG(LogTemp, Warning, TEXT("%s not moving! Mode=%d, MaxSpeed=%.0f, IsMovingOnGround=%d, IsFalling=%d"),
+					*GetName(),
+					(int32)MoveComp->MovementMode,
+					MoveComp->MaxWalkSpeed,
+					MoveComp->IsMovingOnGround(),
+					MoveComp->IsFalling());
+				DebugTimer = 0.0f;
+			}
+		}
 	}
 
 	// Decay hit flash (with hold period)
@@ -367,8 +385,12 @@ void ASurvivorEnemy::Reinitialize(UDataTable* DataTable, FName RowName, FVector 
 	// Re-enable collision on capsule
 	GetCapsuleComponent()->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
 
-	// Re-enable movement
-	GetCharacterMovement()->SetMovementMode(MOVE_Walking);
+	// Re-enable movement - ensure it's fully reset after DisableMovement() in OnDeath
+	UCharacterMovementComponent* MoveComp = GetCharacterMovement();
+	MoveComp->SetComponentTickEnabled(true);
+	MoveComp->SetMovementMode(MOVE_Walking);
+	MoveComp->Velocity = FVector::ZeroVector;
+	MoveComp->UpdateComponentVelocity();  // Force sync
 
 	// Apply visuals and stats from data
 	InitializeFromData();
