@@ -381,20 +381,28 @@ void UEnemySpawnSubsystem::CacheFloorBounds()
 		return;
 	}
 
-	// Find the LevelFloor brush by name
+	// Find the LevelFloor brush by name or label
 	for (TActorIterator<ABrush> It(World); It; ++It)
 	{
 		ABrush* Brush = *It;
-		if (Brush && Brush->GetName().Contains(TEXT("LevelFloor")))
+		if (Brush)
 		{
-			FVector Origin, Extent;
-			Brush->GetActorBounds(false, Origin, Extent);
-			FloorBounds = FBox(Origin - Extent, Origin + Extent);
-			bHasFloorBounds = true;
+			FString ActorName = Brush->GetName();
+			FString ActorLabel = Brush->GetActorLabel();
 
-			UE_LOG(LogTemp, Log, TEXT("EnemySpawnSubsystem: Found LevelFloor bounds - Min(%s) Max(%s)"),
-				*FloorBounds.Min.ToString(), *FloorBounds.Max.ToString());
-			return;
+			UE_LOG(LogTemp, Log, TEXT("CacheFloorBounds: Found brush Name='%s' Label='%s'"), *ActorName, *ActorLabel);
+
+			if (ActorName.Contains(TEXT("LevelFloor")) || ActorLabel.Contains(TEXT("LevelFloor")))
+			{
+				FVector Origin, Extent;
+				Brush->GetActorBounds(false, Origin, Extent);
+				FloorBounds = FBox(Origin - Extent, Origin + Extent);
+				bHasFloorBounds = true;
+
+				UE_LOG(LogTemp, Log, TEXT("EnemySpawnSubsystem: Found LevelFloor bounds - Min(%s) Max(%s)"),
+					*FloorBounds.Min.ToString(), *FloorBounds.Max.ToString());
+				return;
+			}
 		}
 	}
 

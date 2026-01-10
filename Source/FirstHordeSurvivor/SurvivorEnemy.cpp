@@ -146,28 +146,15 @@ void ASurvivorEnemy::Tick(float DeltaTime)
 		// Flatten Z
 		Direction.Z = 0.f;
 
-		AddMovementInput(Direction);
-
-		// Optional: Force rotation if AddMovementInput doesn't handle it fast enough
-		SetActorRotation(Direction.Rotation());
-
-		// Debug: Check if movement is actually happening
+		// Use AddInputVector directly on movement component - bypasses controller requirement
 		UCharacterMovementComponent* MoveComp = GetCharacterMovement();
-		if (MoveComp && MoveComp->Velocity.Size() < 1.0f && MoveComp->MaxWalkSpeed > 0.0f)
+		if (MoveComp)
 		{
-			static float DebugTimer = 0.0f;
-			DebugTimer += DeltaTime;
-			if (DebugTimer > 2.0f)  // Log every 2 seconds
-			{
-				UE_LOG(LogTemp, Warning, TEXT("%s not moving! Mode=%d, MaxSpeed=%.0f, IsMovingOnGround=%d, IsFalling=%d"),
-					*GetName(),
-					(int32)MoveComp->MovementMode,
-					MoveComp->MaxWalkSpeed,
-					MoveComp->IsMovingOnGround(),
-					MoveComp->IsFalling());
-				DebugTimer = 0.0f;
-			}
+			MoveComp->AddInputVector(Direction);
 		}
+
+		// Force rotation to face movement direction
+		SetActorRotation(Direction.Rotation());
 	}
 
 	// Decay hit flash (with hold period)
