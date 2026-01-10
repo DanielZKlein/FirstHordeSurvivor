@@ -4,6 +4,7 @@
 #include "GameFramework/Character.h"
 #include "Engine/World.h"
 #include "Engine/Brush.h"
+#include "Engine/Engine.h"
 #include "TimerManager.h"
 #include "EngineUtils.h"
 
@@ -257,6 +258,9 @@ void UEnemySpawnSubsystem::SpawnEnemy()
 		Interval,
 		false  // Not looping - we recalculate each time
 	);
+
+	// Update debug display
+	UpdateDebugHUD();
 }
 
 FVector UEnemySpawnSubsystem::GetSpawnLocation()
@@ -424,4 +428,102 @@ FVector UEnemySpawnSubsystem::ClampToFloorBounds(FVector Location)
 	Location.Y = FMath::Clamp(Location.Y, SafeBounds.Min.Y, SafeBounds.Max.Y);
 
 	return Location;
+}
+
+void UEnemySpawnSubsystem::UpdateDebugHUD()
+{
+	if (!bShowDebugHUD || !GEngine)
+	{
+		return;
+	}
+
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		return;
+	}
+
+	float ElapsedSeconds = World->GetTimeSeconds();
+	int32 Minutes = FMath::FloorToInt(ElapsedSeconds / 60.0f);
+	int32 Seconds = FMath::FloorToInt(FMath::Fmod(ElapsedSeconds, 60.0f));
+	float ElapsedMinutes = ElapsedSeconds / 60.0f;
+
+	// Calculate spawn rate components
+	float TimeBasedRate = BaseSpawnRate + (ElapsedMinutes * SpawnRateGrowth);
+	int32 CurrentCount = ActiveEnemies.Num();
+	float EnemyDeficit = FMath::Max(0.0f, TargetEnemyCount - CurrentCount) / TargetEnemyCount;
+	float ResponsiveBonus = MaxResponsiveBonus * EnemyDeficit * Responsiveness;
+	float TotalRate = FMath::Min(TimeBasedRate + ResponsiveBonus, MaxSpawnRate);
+	float SpawnsPerSecond = TotalRate / 60.0f;
+
+	// Find latest unlocked and active enemy types
+	FString UnlockedTypes = TEXT("");
+	FString ActiveTypes = TEXT("");
+	if (SpawnConfigTable)
+	{
+		TArray<FName> RowNames = SpawnConfigTable->GetRowNames();
+		for (const FName& RowName : RowNames)
+		{
+			FEnemySpawnEntry* Entry = SpawnConfigTable->FindRow<FEnemySpawnEntry>(RowName, TEXT(""));
+			if (Entry)
+			{
+				bool bUnlocked = ElapsedMinutes >= Entry->MinuteUnlock;
+				bool bDeprecated = Entry->MinuteDeprecate > 0.0f && ElapsedMinutes >= Entry->MinuteDeprecate;
+
+				if (bUnlocked && !bDeprecated)
+				{
+					if (ActiveTypes.Len() > 0) ActiveTypes += TEXT(", ");
+					ActiveTypes += Entry->EnemyRowName.ToString();
+				}
+				else if (bUnlocked && bDeprecated)
+				{
+					// Show deprecated with strikethrough-ish
+				}
+
+				if (bUnlocked && UnlockedTypes.Len() == 0)
+				{
+					UnlockedTypes = Entry->EnemyRowName.ToString();
+				}
+				else if (bUnlocked)
+				{
+					UnlockedTypes = Entry->EnemyRowName.ToString();  // Keep updating to get latest
+				}
+			}
+		}
+	}
+	else if (EnemyDataTable)
+	{
+		TArray<FName> RowNames = EnemyDataTable->GetRowNames();
+		if (RowNames.Num() > 0)
+		{
+			ActiveTypes = RowNames[0].ToString();
+		}
+	}
+
+	bool bAtCap = CurrentCount >= MaxEnemiesOnMap;
+
+	// Build debug strings - use different keys for each line so they don't overwrite
+	GEngine->AddOnScreenDebugMessage(100, 0.5f, FColor::Cyan,
+		FString::Printf(TEXT("=== SPAWN SYSTEM DEBUG ===")));
+
+	GEngine->AddOnScreenDebugMessage(101, 0.5f, FColor::White,
+		FString::Printf(TEXT("Time: %02d:%02d (%.1f min)"), Minutes, Seconds, ElapsedMinutes));
+
+	GEngine->AddOnScreenDebugMessage(102, 0.5f, bAtCap ? FColor::Red : FColor::Green,
+		FString::Printf(TEXT("Enemies: %d / %d %s"), CurrentCount, MaxEnemiesOnMap, bAtCap ? TEXT("[AT CAP]") : TEXT("")));
+
+	GEngine->AddOnScreenDebugMessage(103, 0.5f, FColor::White,
+		FString::Printf(TEXT("Pool: %d available"), EnemyPool.Num()));
+
+	GEngine->AddOnScreenDebugMessage(104, 0.5f, FColor::Yellow,
+		FString::Printf(TEXT("Spawn Rate: %.1f/min (%.2f/sec)"), TotalRate, SpawnsPerSecond));
+
+	GEngine->AddOnScreenDebugMessage(105, 0.5f, FColor::White,
+		FString::Printf(TEXT("  Base+Time: %.1f/min"), TimeBasedRate));
+
+	GEngine->AddOnScreenDebugMessage(106, 0.5f, ResponsiveBonus > 10.0f ? FColor::Orange : FColor::White,
+		FString::Printf(TEXT("  Responsive Bonus: +%.1f/min (%.0f%% deficit)"), ResponsiveBonus, EnemyDeficit * 100.0f));
+
+	GEngine->AddOnScreenDebugMessage(107, 0.5f, FColor::Cyan,
+		FString::Printf(TEXT("Active Types: %s"), ActiveTypes.Len() > 0 ? *ActiveTypes : TEXT("(none)")));
 }

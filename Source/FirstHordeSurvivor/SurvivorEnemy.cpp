@@ -45,12 +45,13 @@ ASurvivorEnemy::ASurvivorEnemy()
 
 	// Default Movement settings
 	GetCharacterMovement()->bOrientRotationToMovement = true;
-    GetCharacterMovement()->RotationRate = FRotator(0.0f, 1000.0f, 0.0f); // Fast rotation to face RVO velocity
+	GetCharacterMovement()->RotationRate = FRotator(0.0f, 1000.0f, 0.0f); // Fast rotation to face RVO velocity
 	GetCharacterMovement()->MaxWalkSpeed = 400.0f;
-    
-    // Avoidance
-    GetCharacterMovement()->bUseRVOAvoidance = true;
-    GetCharacterMovement()->AvoidanceWeight = 0.5f;
+	GetCharacterMovement()->bRunPhysicsWithNoController = true;  // Critical: allow movement without AI controller
+
+	// Avoidance
+	GetCharacterMovement()->bUseRVOAvoidance = true;
+	GetCharacterMovement()->AvoidanceWeight = 0.5f;
 }
 
 void ASurvivorEnemy::BeginPlay()
@@ -411,7 +412,7 @@ void ASurvivorEnemy::Reinitialize(UDataTable* DataTable, FName RowName, FVector 
 	MoveComp->FindFloor(GetActorLocation(), FloorResult, false);
 	if (FloorResult.bWalkableFloor)
 	{
-		MoveComp->SetBase(FloorResult.HitResult.GetActor(), FloorResult.HitResult.BoneName);
+		MoveComp->SetBase(FloorResult.HitResult.GetComponent(), FloorResult.HitResult.BoneName);
 	}
 
 	// Apply visuals and stats from data

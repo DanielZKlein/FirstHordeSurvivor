@@ -76,27 +76,27 @@ public:
 
 	// Spawn Rate Settings
 	UPROPERTY(EditAnywhere, Category = "Spawn Rate")
-	float BaseSpawnRate = 30.0f;  // Spawns per minute at game start
+	float BaseSpawnRate = 60.0f;  // Spawns per minute at game start
 
 	UPROPERTY(EditAnywhere, Category = "Spawn Rate")
-	float SpawnRateGrowth = 5.0f;  // Extra spawns/min per minute elapsed
+	float SpawnRateGrowth = 10.0f;  // Extra spawns/min per minute elapsed
 
 	UPROPERTY(EditAnywhere, Category = "Spawn Rate")
-	float MaxSpawnRate = 120.0f;  // Hard cap on spawns per minute
+	float MaxSpawnRate = 2000.0f;  // Hard cap on spawns per minute
 
 	// Responsive System
 	UPROPERTY(EditAnywhere, Category = "Spawn Rate")
-	float TargetEnemyCount = 50.0f;  // "Full" enemy count for responsive calc
+	float TargetEnemyCount = 120.0f;  // "Full" enemy count for responsive calc
 
 	UPROPERTY(EditAnywhere, Category = "Spawn Rate")
-	float MaxResponsiveBonus = 60.0f;  // Max extra spawns/min when few enemies
+	float MaxResponsiveBonus = 200.0f;  // Max extra spawns/min when few enemies
 
 	UPROPERTY(EditAnywhere, Category = "Spawn Rate")
-	float Responsiveness = 0.5f;  // 0-1, how aggressively to spawn when empty
+	float Responsiveness = 0.9f;  // 0-1, how aggressively to spawn when empty
 
 	// Caps
 	UPROPERTY(EditAnywhere, Category = "Limits")
-	int32 MaxEnemiesOnMap = 150;  // Performance cap
+	int32 MaxEnemiesOnMap = 350;  // Performance cap
 
 	UPROPERTY(EditAnywhere, Category = "Limits")
 	int32 PreWarmCount = 20;  // Enemies to pre-spawn inactive
@@ -111,7 +111,12 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Location")
 	float FloorBoundsMargin = 200.0f;  // Safety margin inside floor bounds
 
+	// Debug
+	UPROPERTY(EditAnywhere, Category = "Debug")
+	bool bShowDebugHUD = true;
+
 protected:
+	void UpdateDebugHUD();
 	// Cached floor bounds
 	FBox FloorBounds;
 	bool bHasFloorBounds = false;
