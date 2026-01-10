@@ -141,7 +141,7 @@ void UEnemySpawnSubsystem::PreWarmPool(int32 Count)
 
 		ASurvivorEnemy* Enemy = World->SpawnActor<ASurvivorEnemy>(
 			EnemyClass,
-			FVector(0.0f, 0.0f, -10000.0f),  // Spawn far below
+			FVector(0.0f, 0.0f, 100.0f),  // Spawn at valid Z (floor is at Z=0)
 			FRotator::ZeroRotator,
 			Params
 		);

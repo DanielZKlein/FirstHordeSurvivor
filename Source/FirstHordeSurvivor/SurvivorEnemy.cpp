@@ -151,6 +151,30 @@ void ASurvivorEnemy::Tick(float DeltaTime)
 		if (MoveComp)
 		{
 			MoveComp->AddInputVector(Direction);
+
+			// Debug: Log state for stuck enemies
+			static TMap<FString, float> DebugTimers;
+			float& Timer = DebugTimers.FindOrAdd(GetName());
+			Timer += DeltaTime;
+
+			if (MoveComp->Velocity.Size() < 1.0f && Timer > 3.0f)
+			{
+				FVector ConsumedInput = MoveComp->GetLastInputVector();
+				UE_LOG(LogTemp, Warning, TEXT("%s STUCK: Dir=%s, ConsumedInput=%s, Vel=%s, MaxSpeed=%.0f, Mode=%d, GroundMov=%d, HasInput=%d"),
+					*GetName(),
+					*Direction.ToString(),
+					*ConsumedInput.ToString(),
+					*MoveComp->Velocity.ToString(),
+					MoveComp->MaxWalkSpeed,
+					(int32)MoveComp->MovementMode,
+					MoveComp->IsMovingOnGround(),
+					!ConsumedInput.IsNearlyZero());
+				Timer = 0.0f;
+			}
+			else if (MoveComp->Velocity.Size() >= 1.0f)
+			{
+				Timer = 0.0f;  // Reset timer for moving enemies
+			}
 		}
 
 		// Force rotation to face movement direction
@@ -372,12 +396,23 @@ void ASurvivorEnemy::Reinitialize(UDataTable* DataTable, FName RowName, FVector 
 	// Re-enable collision on capsule
 	GetCapsuleComponent()->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
 
-	// Re-enable movement - ensure it's fully reset after DisableMovement() in OnDeath
+	// Re-enable movement - force full reset of movement component state
+	// Pre-warmed enemies spawned at Z=-10000 have corrupted floor detection
 	UCharacterMovementComponent* MoveComp = GetCharacterMovement();
 	MoveComp->SetComponentTickEnabled(true);
-	MoveComp->SetMovementMode(MOVE_Walking);
+	MoveComp->StopMovementImmediately();
+	MoveComp->SetMovementMode(MOVE_None);  // Clear current mode
+	MoveComp->SetMovementMode(MOVE_Falling);  // Force falling to reset floor state
+	MoveComp->SetMovementMode(MOVE_Walking);  // Now set walking - will trigger floor detection
 	MoveComp->Velocity = FVector::ZeroVector;
-	MoveComp->UpdateComponentVelocity();  // Force sync
+
+	// Force floor detection at new location
+	FFindFloorResult FloorResult;
+	MoveComp->FindFloor(GetActorLocation(), FloorResult, false);
+	if (FloorResult.bWalkableFloor)
+	{
+		MoveComp->SetBase(FloorResult.HitResult.GetActor(), FloorResult.HitResult.BoneName);
+	}
 
 	// Apply visuals and stats from data
 	InitializeFromData();
