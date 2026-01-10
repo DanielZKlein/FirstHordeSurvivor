@@ -29,6 +29,10 @@ public:
 	// Minutes into game before this enemy can spawn
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Spawn", meta = (ClampMin = "0.0"))
 	float MinuteUnlock = 0.0f;
+
+	// Minutes into game when this enemy stops spawning (0 = never expires)
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Spawn", meta = (ClampMin = "0.0"))
+	float MinuteDeprecate = 0.0f;
 };
 
 /**

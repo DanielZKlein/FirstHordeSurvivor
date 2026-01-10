@@ -160,17 +160,18 @@ Where:
 
 Row structure `FEnemySpawnEntry`:
 ```cpp
-FName EnemyRowName;      // Reference to DT_Enemies row
-float Weight = 1.0f;     // Relative spawn chance
-float MinuteUnlock = 0.0f;  // When this enemy starts appearing
+FName EnemyRowName;            // Reference to DT_Enemies row
+float Weight = 1.0f;           // Relative spawn chance
+float MinuteUnlock = 0.0f;     // When this enemy starts appearing
+float MinuteDeprecate = 0.0f;  // When this enemy stops spawning (0 = never)
 ```
 
 Example rows:
-| Row Name | EnemyRowName | Weight | MinuteUnlock |
-|----------|--------------|--------|--------------|
-| Basic | Lvl1_Tetrahedron | 10.0 | 0.0 |
-| Medium | Lvl2_Pyramid | 5.0 | 2.0 |
-| Hard | Lvl3_Cube | 2.0 | 5.0 |
+| Row Name | EnemyRowName | Weight | MinuteUnlock | MinuteDeprecate |
+|----------|--------------|--------|--------------|-----------------|
+| Basic | Lvl1_Tetrahedron | 10.0 | 0.0 | 4.0 |
+| Medium | Lvl2_Pyramid | 5.0 | 2.0 | 8.0 |
+| Hard | Lvl3_Cube | 2.0 | 5.0 | 0.0 |
 
 ### Subsystem Properties
 

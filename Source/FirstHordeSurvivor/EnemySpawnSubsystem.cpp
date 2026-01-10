@@ -291,6 +291,11 @@ FName UEnemySpawnSubsystem::SelectEnemyType()
 		FEnemySpawnEntry* Entry = SpawnConfigTable->FindRow<FEnemySpawnEntry>(RowName, TEXT(""));
 		if (Entry && ElapsedMinutes >= Entry->MinuteUnlock)
 		{
+			// Check if deprecated (0 means never expires)
+			if (Entry->MinuteDeprecate > 0.0f && ElapsedMinutes >= Entry->MinuteDeprecate)
+			{
+				continue;  // Skip deprecated enemy types
+			}
 			Available.Add(Entry);
 			TotalWeight += Entry->Weight;
 		}
