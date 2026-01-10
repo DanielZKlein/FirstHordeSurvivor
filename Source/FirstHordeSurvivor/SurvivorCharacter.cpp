@@ -11,6 +11,7 @@
 #include "Kismet/GameplayStatics.h"
 #include "SurvivorEnemy.h"
 #include "SurvivorWeapon.h"
+#include "WeaponDataBase.h"
 
 #include "Components/StaticMeshComponent.h"
 

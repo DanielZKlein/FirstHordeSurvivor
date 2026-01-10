@@ -12,7 +12,7 @@ class UInputMappingContext;
 class UInputAction;
 class UAudioComponent;
 class UCurveFloat;
-class UWeaponData;
+class UWeaponDataBase;
 
 UCLASS()
 class FIRSTHORDESURVIVOR_API ASurvivorCharacter : public ACharacter
@@ -70,7 +70,7 @@ public:
     // Let's assume we spawn a generic ASurvivorWeapon and give it the Data.
     
     UPROPERTY(EditAnywhere, Category = "Combat")
-    UWeaponData* StartingWeaponData;
+    TObjectPtr<UWeaponDataBase> StartingWeaponData;
 
 	// Helper to apply attributes to CharacterMovement
 	UFUNCTION(BlueprintCallable, Category = "Attributes")

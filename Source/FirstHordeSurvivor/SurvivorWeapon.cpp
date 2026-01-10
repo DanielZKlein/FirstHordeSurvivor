@@ -1,5 +1,6 @@
 #include "SurvivorWeapon.h"
-#include "WeaponData.h"
+#include "WeaponDataBase.h"
+#include "ProjectileWeaponData.h"
 #include "SurvivorProjectile.h"
 #include "Kismet/GameplayStatics.h"
 #include "SurvivorEnemy.h"
@@ -8,173 +9,259 @@
 
 ASurvivorWeapon::ASurvivorWeapon()
 {
- 	PrimaryActorTick.bCanEverTick = false;
+	PrimaryActorTick.bCanEverTick = false;
 }
 
 void ASurvivorWeapon::BeginPlay()
 {
 	Super::BeginPlay();
-    
-    if (WeaponData)
-    {
-        StartShooting();
-    }
+
+	if (WeaponData)
+	{
+		StartShooting();
+	}
 }
 
 void ASurvivorWeapon::StartShooting()
 {
-    if (WeaponData && WeaponData->RPM > 0.0f)
-    {
-        float Delay = 60.0f / WeaponData->RPM;
-        GetWorldTimerManager().SetTimer(TimerHandle_Attack, this, &ASurvivorWeapon::Fire, Delay, true);
-    }
+	float RPM = GetEffectiveRPM();
+	if (RPM > 0.0f)
+	{
+		float Delay = 60.0f / RPM;
+		GetWorldTimerManager().SetTimer(TimerHandle_Attack, this, &ASurvivorWeapon::Fire, Delay, true);
+	}
 }
 
 void ASurvivorWeapon::StopShooting()
 {
-    GetWorldTimerManager().ClearTimer(TimerHandle_Attack);
+	GetWorldTimerManager().ClearTimer(TimerHandle_Attack);
+}
+
+float ASurvivorWeapon::GetStat(EWeaponStat Stat) const
+{
+	if (!WeaponData)
+	{
+		return 0.0f;
+	}
+
+	// Get base value from weapon data
+	float BaseValue = WeaponData->GetStatValue(Stat);
+
+	// Apply runtime modifiers if any
+	if (const FGameplayAttribute* Modifier = StatModifiers.Find(Stat))
+	{
+		// Modifier is applied on top: (BaseValue + Additive) * Multiplicative
+		return (BaseValue + Modifier->Additive) * Modifier->Multiplicative;
+	}
+
+	return BaseValue;
+}
+
+void ASurvivorWeapon::ApplyStatUpgrade(EWeaponStat Stat, float Additive, float Multiplicative)
+{
+	if (!StatModifiers.Contains(Stat))
+	{
+		// Initialize modifier if not present
+		StatModifiers.Add(Stat, FGameplayAttribute(0.0f));
+		StatModifiers[Stat].Multiplicative = 1.0f;
+	}
+
+	// Stack the modifiers
+	StatModifiers[Stat].Additive += Additive;
+	StatModifiers[Stat].Multiplicative *= Multiplicative;
+
+	// If attack speed changed, update the fire timer
+	if (Stat == EWeaponStat::AttackSpeed)
+	{
+		StopShooting();
+		StartShooting();
+	}
+}
+
+bool ASurvivorWeapon::UsesStat(EWeaponStat Stat) const
+{
+	if (!WeaponData)
+	{
+		return false;
+	}
+	return WeaponData->GetApplicableStats().Contains(Stat);
+}
+
+TArray<EWeaponStat> ASurvivorWeapon::GetApplicableStats() const
+{
+	if (WeaponData)
+	{
+		return WeaponData->GetApplicableStats();
+	}
+	return TArray<EWeaponStat>();
+}
+
+UProjectileWeaponData* ASurvivorWeapon::GetProjectileData() const
+{
+	return Cast<UProjectileWeaponData>(WeaponData);
+}
+
+float ASurvivorWeapon::GetEffectiveRPM() const
+{
+	if (!WeaponData)
+	{
+		return 0.0f;
+	}
+
+	float BaseRPM = WeaponData->GetBaseRPM();
+	float AttackSpeedMod = GetStat(EWeaponStat::AttackSpeed);
+	return BaseRPM * AttackSpeedMod;
 }
 
 void ASurvivorWeapon::Fire()
 {
-    if (!WeaponData || !WeaponData->ProjectileClass)
-    {
-        return;
-    }
+	UProjectileWeaponData* ProjData = GetProjectileData();
+	if (!ProjData || !ProjData->ProjectileClass)
+	{
+		return;
+	}
 
-    AActor* Target = FindBestTarget();
-    if (Target)
-    {
-        // Use owner's location as the firing position
-        FVector SpawnLocation = GetOwner() ? GetOwner()->GetActorLocation() : GetActorLocation();
+	AActor* Target = FindBestTarget();
+	if (Target)
+	{
+		// Use owner's location as the firing position
+		FVector SpawnLocation = GetOwner() ? GetOwner()->GetActorLocation() : GetActorLocation();
 
-        // Calculate Direction
-        FVector Direction = (Target->GetActorLocation() - SpawnLocation).GetSafeNormal();
-        
-        // Apply Cone Precision
-        // Precision is in degrees.
-        float HalfCone = WeaponData->Precision * 0.5f;
-        
-        // Random point in cone
-        // Simple way: Add random rotation to the direction
-        FRotator Rot = Direction.Rotation();
-        Rot.Pitch += FMath::RandRange(-HalfCone, HalfCone);
-        Rot.Yaw += FMath::RandRange(-HalfCone, HalfCone);
-        
-        FVector FinalDir = Rot.Vector();
-        FinalDir.Z = 0.0f;
-        FinalDir.Normalize();
-        Rot = FinalDir.Rotation();
+		// Calculate Direction
+		FVector Direction = (Target->GetActorLocation() - SpawnLocation).GetSafeNormal();
 
-        // Spawn Projectile
-        FTransform SpawnTM(Rot, SpawnLocation);
+		// Get projectile count (for multi-shot)
+		int32 ProjectileCount = FMath::Max(1, FMath::RoundToInt(GetStat(EWeaponStat::ProjectileCount)));
 
-        FActorSpawnParameters SpawnParams;
-        SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-        SpawnParams.Instigator = Cast<APawn>(GetOwner());
+		for (int32 i = 0; i < ProjectileCount; ++i)
+		{
+			// Apply Cone Precision
+			float HalfCone = ProjData->Precision * 0.5f;
 
-        ASurvivorProjectile* Proj = GetWorld()->SpawnActor<ASurvivorProjectile>(WeaponData->ProjectileClass, SpawnTM, SpawnParams);
-        if (Proj)
-        {
-            Proj->Initialize(WeaponData->ProjectileSpeed, WeaponData->Damage, WeaponData->MaxRange);
-        }
+			// For multi-shot, spread projectiles evenly within cone
+			FRotator Rot = Direction.Rotation();
+			if (ProjectileCount > 1)
+			{
+				// Spread evenly across the cone
+				float Spread = (i - (ProjectileCount - 1) * 0.5f) * (ProjData->Precision / (ProjectileCount - 1));
+				Rot.Yaw += Spread;
+			}
+			else
+			{
+				// Single projectile: random within cone
+				Rot.Pitch += FMath::RandRange(-HalfCone, HalfCone);
+				Rot.Yaw += FMath::RandRange(-HalfCone, HalfCone);
+			}
 
-        // Play Sound
-        if (WeaponData->ShootSound)
-        {
-            UGameplayStatics::PlaySoundAtLocation(this, WeaponData->ShootSound, SpawnLocation);
-        }
+			FVector FinalDir = Rot.Vector();
+			FinalDir.Z = 0.0f;
+			FinalDir.Normalize();
+			Rot = FinalDir.Rotation();
 
-        // Play VFX
-        if (WeaponData->ShootVFX)
-        {
-            UNiagaraFunctionLibrary::SpawnSystemAtLocation(this, WeaponData->ShootVFX, SpawnLocation);
-        }
-    }
+			// Spawn Projectile
+			FTransform SpawnTM(Rot, SpawnLocation);
+
+			FActorSpawnParameters SpawnParams;
+			SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+			SpawnParams.Instigator = Cast<APawn>(GetOwner());
+
+			ASurvivorProjectile* Proj = GetWorld()->SpawnActor<ASurvivorProjectile>(ProjData->ProjectileClass, SpawnTM, SpawnParams);
+			if (Proj)
+			{
+				// Pass stats to projectile using the modifier-applied values
+				Proj->Initialize(
+					GetStat(EWeaponStat::ProjectileSpeed),
+					GetStat(EWeaponStat::Damage),
+					GetStat(EWeaponStat::Range),
+					FMath::RoundToInt(GetStat(EWeaponStat::Penetration)),
+					GetStat(EWeaponStat::Area),
+					GetStat(EWeaponStat::Knockback),
+					ProjData->ExplosionSound,
+					ProjData->ExplosionVFX
+				);
+			}
+		}
+
+		// Play Sound
+		if (WeaponData->AttackSound)
+		{
+			UGameplayStatics::PlaySoundAtLocation(this, WeaponData->AttackSound, SpawnLocation);
+		}
+
+		// Play VFX
+		if (WeaponData->AttackVFX)
+		{
+			UNiagaraFunctionLibrary::SpawnSystemAtLocation(this, WeaponData->AttackVFX, SpawnLocation);
+		}
+	}
 }
 
 AActor* ASurvivorWeapon::FindBestTarget()
 {
-    if (!WeaponData) return nullptr;
+	UProjectileWeaponData* ProjData = GetProjectileData();
+	if (!ProjData)
+	{
+		return nullptr;
+	}
 
-    TArray<AActor*> Enemies;
-    UGameplayStatics::GetAllActorsOfClass(this, ASurvivorEnemy::StaticClass(), Enemies);
+	TArray<AActor*> Enemies;
+	UGameplayStatics::GetAllActorsOfClass(this, ASurvivorEnemy::StaticClass(), Enemies);
 
-    if (Enemies.Num() == 0)
-    {
-        //UE_LOG(LogTemp, Warning, TEXT("ASurvivorWeapon::FindBestTarget - No enemies found in world"));
-        return nullptr;
-    }
+	if (Enemies.Num() == 0)
+	{
+		return nullptr;
+	}
 
-    AActor* BestTarget = nullptr;
-    float BestScore = -FLT_MAX;
+	AActor* BestTarget = nullptr;
+	float BestScore = -FLT_MAX;
 
-    // Use owner's location (the player) rather than weapon's own location
-    FVector MyLoc = GetOwner() ? GetOwner()->GetActorLocation() : GetActorLocation();
-    FVector MyVelocity = FVector::ZeroVector;
-    
-    // Get Owner Velocity for "InFront" calculation
-    if (AActor* OwnerActor = GetOwner())
-    {
-        MyVelocity = OwnerActor->GetVelocity();
-    }
-    
-    // Normalize velocity for Dot Product
-    FVector MoveDir = MyVelocity.GetSafeNormal();
-    bool bIsMoving = !MyVelocity.IsNearlyZero();
+	// Use owner's location (the player) rather than weapon's own location
+	FVector MyLoc = GetOwner() ? GetOwner()->GetActorLocation() : GetActorLocation();
+	FVector MyVelocity = FVector::ZeroVector;
 
-    for (AActor* Enemy : Enemies)
-    {
-        float DistSq = FVector::DistSquared(MyLoc, Enemy->GetActorLocation());
-        float Dist = FMath::Sqrt(DistSq);
+	// Get Owner Velocity for "InFront" calculation
+	if (AActor* OwnerActor = GetOwner())
+	{
+		MyVelocity = OwnerActor->GetVelocity();
+	}
 
-        // Max Range Check
-        if (Dist > WeaponData->MaxRange)
-        {
-            continue;
-        }
+	// Normalize velocity for Dot Product
+	FVector MoveDir = MyVelocity.GetSafeNormal();
+	bool bIsMoving = !MyVelocity.IsNearlyZero();
 
-        // Calculate Score
-        float RangeScore = Dist * WeaponData->RangeWeight;
-        float InFrontScore = 0.0f;
+	float MaxRange = GetStat(EWeaponStat::Range);
 
-        // InFront Score
-        if (bIsMoving)
-        {
-            FVector DirToEnemy = (Enemy->GetActorLocation() - MyLoc).GetSafeNormal();
-            float Dot = FVector::DotProduct(MoveDir, DirToEnemy);
-            InFrontScore = Dot * WeaponData->InFrontWeight;
-        }
-        
-        float TotalScore = RangeScore + InFrontScore;
+	for (AActor* Enemy : Enemies)
+	{
+		float DistSq = FVector::DistSquared(MyLoc, Enemy->GetActorLocation());
+		float Dist = FMath::Sqrt(DistSq);
 
-        // Debug Logging
-        FString DebugMsg = FString::Printf(TEXT("Enemy: %s | Dist: %.0f (Score: %.0f) | InFront: %.2f (Score: %.0f) | Total: %.0f"), 
-            *Enemy->GetName(), Dist, RangeScore, (bIsMoving ? InFrontScore/WeaponData->InFrontWeight : 0.0f), InFrontScore, TotalScore);
-        
-        UE_LOG(LogTemp, Log, TEXT("%s"), *DebugMsg);
+		// Max Range Check
+		if (Dist > MaxRange)
+		{
+			continue;
+		}
 
-        // Visual Debug
-        FColor DebugColor = FColor::Red;
-        if (TotalScore > BestScore)
-        {
-            DebugColor = FColor::Green;
-        }
-        
-        // DrawDebugLine(GetWorld(), MyLoc, Enemy->GetActorLocation(), DebugColor, false, 1.0f, 0, 2.0f);
-        // DrawDebugString(GetWorld(), Enemy->GetActorLocation() + FVector(0,0,50), DebugMsg, nullptr, DebugColor, 2.0f);
+		// Calculate Score
+		float RangeScore = Dist * ProjData->RangeWeight;
+		float InFrontScore = 0.0f;
 
-        if (TotalScore > BestScore)
-        {
-            BestScore = TotalScore;
-            BestTarget = Enemy;
-        }
-    }
+		// InFront Score
+		if (bIsMoving)
+		{
+			FVector DirToEnemy = (Enemy->GetActorLocation() - MyLoc).GetSafeNormal();
+			float Dot = FVector::DotProduct(MoveDir, DirToEnemy);
+			InFrontScore = Dot * ProjData->InFrontWeight;
+		}
 
-    if (!BestTarget)
-    {
-        UE_LOG(LogTemp, Warning, TEXT("ASurvivorWeapon::FindBestTarget - %d enemies found but none in range (MaxRange: %.0f)"), Enemies.Num(), WeaponData->MaxRange);
-    }
+		float TotalScore = RangeScore + InFrontScore;
 
-    return BestTarget;
+		if (TotalScore > BestScore)
+		{
+			BestScore = TotalScore;
+			BestTarget = Enemy;
+		}
+	}
+
+	return BestTarget;
 }

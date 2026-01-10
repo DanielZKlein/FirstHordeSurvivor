@@ -3,96 +3,225 @@
 #include "Components/SphereComponent.h"
 #include "NiagaraComponent.h"
 #include "Kismet/GameplayStatics.h"
+#include "Kismet/KismetSystemLibrary.h"
 #include "AttributeComponent.h"
 #include "NiagaraFunctionLibrary.h"
+#include "GameFramework/Character.h"
+#include "GameFramework/CharacterMovementComponent.h"
 
 ASurvivorProjectile::ASurvivorProjectile()
 {
- 	PrimaryActorTick.bCanEverTick = true;
+	PrimaryActorTick.bCanEverTick = true;
 
-    SphereComp = CreateDefaultSubobject<USphereComponent>(TEXT("SphereComp"));
-    SphereComp->SetCollisionProfileName("Projectile"); // Custom profile or OverlapAllDynamic?
-    // Let's use OverlapAllDynamic but Block WorldStatic? 
-    // Actually, usually projectiles overlap enemies.
-    SphereComp->SetCollisionProfileName("OverlapAllDynamic");
-    SphereComp->SetGenerateOverlapEvents(true);
-    RootComponent = SphereComp;
+	SphereComp = CreateDefaultSubobject<USphereComponent>(TEXT("SphereComp"));
+	SphereComp->SetCollisionProfileName("OverlapAllDynamic");
+	SphereComp->SetGenerateOverlapEvents(true);
+	RootComponent = SphereComp;
 
-    MeshComp = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("MeshComp"));
-    MeshComp->SetupAttachment(RootComponent);
-    MeshComp->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	MeshComp = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("MeshComp"));
+	MeshComp->SetupAttachment(RootComponent);
+	MeshComp->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 
-    MovementComp = CreateDefaultSubobject<UProjectileMovementComponent>(TEXT("MovementComp"));
-    MovementComp->ProjectileGravityScale = 0.0f;
-    MovementComp->bRotationFollowsVelocity = true;
-    MovementComp->bInitialVelocityInLocalSpace = true;
+	MovementComp = CreateDefaultSubobject<UProjectileMovementComponent>(TEXT("MovementComp"));
+	MovementComp->ProjectileGravityScale = 0.0f;
+	MovementComp->bRotationFollowsVelocity = true;
+	MovementComp->bInitialVelocityInLocalSpace = true;
 
-    TrailComp = CreateDefaultSubobject<UNiagaraComponent>(TEXT("TrailComp"));
-    TrailComp->SetupAttachment(RootComponent);
+	TrailComp = CreateDefaultSubobject<UNiagaraComponent>(TEXT("TrailComp"));
+	TrailComp->SetupAttachment(RootComponent);
 
-    // Bind Hit (Actually Overlap since we set OverlapAllDynamic)
-    SphereComp->OnComponentBeginOverlap.AddDynamic(this, &ASurvivorProjectile::OnOverlapBegin);
+	// Initialize defaults
+	RemainingPierces = 0;
+	AoERadius = 0.0f;
+	Knockback = 0.0f;
+
+	SphereComp->OnComponentBeginOverlap.AddDynamic(this, &ASurvivorProjectile::OnOverlapBegin);
 }
 
 void ASurvivorProjectile::BeginPlay()
 {
 	Super::BeginPlay();
-    StartLocation = GetActorLocation();
+	StartLocation = GetActorLocation();
 }
 
-void ASurvivorProjectile::Initialize(float Speed, float DamageAmount, float Range)
+void ASurvivorProjectile::Initialize(
+	float Speed,
+	float DamageAmount,
+	float Range,
+	int32 PierceCount,
+	float ExplosionRadius,
+	float KnockbackForce,
+	USoundBase* InExplosionSound,
+	UNiagaraSystem* InExplosionVFX)
 {
-    MovementComp->InitialSpeed = Speed;
-    MovementComp->MaxSpeed = Speed;
-    MovementComp->Velocity = GetActorForwardVector() * Speed; // Explicitly set velocity if needed
-    
-    Damage = DamageAmount;
-    MaxRange = Range;
+	MovementComp->InitialSpeed = Speed;
+	MovementComp->MaxSpeed = Speed;
+	MovementComp->Velocity = GetActorForwardVector() * Speed;
+
+	Damage = DamageAmount;
+	MaxRange = Range;
+	RemainingPierces = PierceCount;
+	AoERadius = ExplosionRadius;
+	Knockback = KnockbackForce;
+	ExplosionSound = InExplosionSound;
+	ExplosionVFX = InExplosionVFX;
 }
 
 void ASurvivorProjectile::Tick(float DeltaTime)
 {
-    Super::Tick(DeltaTime);
+	Super::Tick(DeltaTime);
 
-    // Range Check
-    if (FVector::DistSquared(GetActorLocation(), StartLocation) > MaxRange * MaxRange)
-    {
-        Destroy();
-    }
+	// Range Check
+	if (FVector::DistSquared(GetActorLocation(), StartLocation) > MaxRange * MaxRange)
+	{
+		// If this is an explosive projectile, explode at end of range
+		if (AoERadius > 0.0f)
+		{
+			Explode();
+		}
+		Destroy();
+	}
 }
 
 void ASurvivorProjectile::OnOverlapBegin(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
 {
-    if (OtherActor && OtherActor != GetInstigator())
-    {
-        // Check if it's an enemy (has AttributeComponent)
-        // We could interface check, or just look for the component
-        UAttributeComponent* AttrComp = Cast<UAttributeComponent>(OtherActor->GetComponentByClass(UAttributeComponent::StaticClass()));
-        
-        if (AttrComp)
-        {
-            // Apply Damage
-            if (AttrComp->ApplyHealthChange(-Damage))
-            {
-                // Play Hit Sound
-                if (HitSound)
-                {
-                    UGameplayStatics::PlaySoundAtLocation(this, HitSound, GetActorLocation());
-                }
+	if (!OtherActor || OtherActor == GetInstigator())
+	{
+		return;
+	}
 
-                // Play Hit VFX
-                if (HitVFX)
-                {
-                    UNiagaraFunctionLibrary::SpawnSystemAtLocation(this, HitVFX, GetActorLocation());
-                }
+	// Skip already-hit enemies (for piercing projectiles)
+	if (HitEnemies.Contains(OtherActor))
+	{
+		return;
+	}
 
-                // Destroy Projectile
-                Destroy();
-            }
-        }
-        else if (OtherActor->ActorHasTag("WorldStatic")) // Optional: Destroy on walls?
-        {
-             Destroy();
-        }
-    }
+	// Check if it's a damageable target
+	UAttributeComponent* AttrComp = Cast<UAttributeComponent>(OtherActor->GetComponentByClass(UAttributeComponent::StaticClass()));
+
+	if (AttrComp)
+	{
+		// Track that we hit this enemy
+		HitEnemies.Add(OtherActor);
+
+		// Apply damage and knockback
+		DamageTarget(OtherActor);
+
+		// Check if we should explode on hit
+		if (AoERadius > 0.0f)
+		{
+			Explode();
+			Destroy();
+			return;
+		}
+
+		// Play single-target hit effects
+		if (HitSound)
+		{
+			UGameplayStatics::PlaySoundAtLocation(this, HitSound, GetActorLocation());
+		}
+		if (HitVFX)
+		{
+			UNiagaraFunctionLibrary::SpawnSystemAtLocation(this, HitVFX, GetActorLocation());
+		}
+
+		// Check pierce
+		if (RemainingPierces > 0)
+		{
+			RemainingPierces--;
+			// Continue flying - don't destroy
+		}
+		else
+		{
+			// No more pierces, destroy
+			Destroy();
+		}
+	}
+	else if (OtherActor->ActorHasTag("WorldStatic"))
+	{
+		// Hit a wall - explode if applicable
+		if (AoERadius > 0.0f)
+		{
+			Explode();
+		}
+		Destroy();
+	}
+}
+
+void ASurvivorProjectile::DamageTarget(AActor* Target)
+{
+	if (!Target)
+	{
+		return;
+	}
+
+	UAttributeComponent* AttrComp = Cast<UAttributeComponent>(Target->GetComponentByClass(UAttributeComponent::StaticClass()));
+	if (AttrComp)
+	{
+		AttrComp->ApplyHealthChange(-Damage);
+	}
+
+	// Apply knockback
+	ApplyKnockback(Target);
+}
+
+void ASurvivorProjectile::Explode()
+{
+	// Play explosion effects
+	if (ExplosionSound)
+	{
+		UGameplayStatics::PlaySoundAtLocation(this, ExplosionSound, GetActorLocation());
+	}
+	if (ExplosionVFX)
+	{
+		UNiagaraFunctionLibrary::SpawnSystemAtLocation(this, ExplosionVFX, GetActorLocation());
+	}
+
+	// Find all actors in explosion radius
+	TArray<AActor*> OverlappingActors;
+	TArray<TEnumAsByte<EObjectTypeQuery>> ObjectTypes;
+	ObjectTypes.Add(UEngineTypes::ConvertToObjectType(ECollisionChannel::ECC_Pawn));
+
+	UKismetSystemLibrary::SphereOverlapActors(
+		this,
+		GetActorLocation(),
+		AoERadius,
+		ObjectTypes,
+		nullptr, // Actor class filter
+		TArray<AActor*>(), // Ignore actors
+		OverlappingActors
+	);
+
+	// Damage all enemies in radius
+	for (AActor* Actor : OverlappingActors)
+	{
+		if (Actor && Actor != GetInstigator() && !HitEnemies.Contains(Actor))
+		{
+			UAttributeComponent* AttrComp = Cast<UAttributeComponent>(Actor->GetComponentByClass(UAttributeComponent::StaticClass()));
+			if (AttrComp)
+			{
+				HitEnemies.Add(Actor);
+				DamageTarget(Actor);
+			}
+		}
+	}
+}
+
+void ASurvivorProjectile::ApplyKnockback(AActor* Target)
+{
+	if (Knockback <= 0.0f || !Target)
+	{
+		return;
+	}
+
+	// Get direction from projectile to target
+	FVector KnockbackDir = (Target->GetActorLocation() - GetActorLocation()).GetSafeNormal();
+	KnockbackDir.Z = 0.0f; // Keep horizontal
+	KnockbackDir.Normalize();
+
+	// If target is a character, use LaunchCharacter
+	if (ACharacter* Character = Cast<ACharacter>(Target))
+	{
+		Character->LaunchCharacter(KnockbackDir * Knockback, true, false);
+	}
 }
