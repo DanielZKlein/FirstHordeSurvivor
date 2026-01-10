@@ -66,8 +66,8 @@ void ASurvivorEnemy::BeginPlay()
 		EnemyData = EnemyDataTable->FindRow<FEnemyTableRow>(EnemyRowName, TEXT("EnemyLookup"));
 	}
 
-	// Validate EnemyData
-	if (!EnemyData)
+	// Validate EnemyData (skip warning if row name is empty - likely being pooled/pre-warmed)
+	if (!EnemyData && !EnemyRowName.IsNone())
 	{
 		UE_LOG(LogTemp, Error, TEXT("EnemyData row '%s' not found in %s! Damage and Stats will not work."), *EnemyRowName.ToString(), *GetName());
 		if (GEngine)

@@ -106,7 +106,11 @@ void UEnemySpawnSubsystem::StartSpawning()
 	// Start spawn timer
 	SpawnEnemy();
 
-	UE_LOG(LogTemp, Log, TEXT("EnemySpawnSubsystem: Spawning started with %d pre-warmed enemies"), PreWarmCount);
+	UE_LOG(LogTemp, Log, TEXT("EnemySpawnSubsystem: Spawning started with %d pre-warmed enemies. EnemyClass=%s, DataTable=%s, SpawnConfig=%s"),
+		PreWarmCount,
+		EnemyClass ? *EnemyClass->GetName() : TEXT("NULL"),
+		EnemyDataTable ? *EnemyDataTable->GetName() : TEXT("NULL"),
+		SpawnConfigTable ? *SpawnConfigTable->GetName() : TEXT("NULL"));
 }
 
 void UEnemySpawnSubsystem::StopSpawning()
@@ -202,28 +206,44 @@ void UEnemySpawnSubsystem::SpawnEnemy()
 	UWorld* World = GetWorld();
 	if (!World)
 	{
+		UE_LOG(LogTemp, Error, TEXT("SpawnEnemy: No world!"));
 		return;
 	}
 
 	// Check enemy cap
 	if (ActiveEnemies.Num() < MaxEnemiesOnMap)
 	{
-		// Get enemy from pool
-		ASurvivorEnemy* Enemy = GetEnemyFromPool();
-		if (Enemy)
+		// Select enemy type first - skip spawn if no valid type
+		FName EnemyType = SelectEnemyType();
+		if (EnemyType.IsNone())
 		{
-			// Select enemy type and location
-			FName EnemyType = SelectEnemyType();
-			FVector Location = GetSpawnLocation();
+			UE_LOG(LogTemp, Warning, TEXT("SpawnEnemy: No valid enemy type available"));
+		}
+		else
+		{
+			// Get enemy from pool
+			ASurvivorEnemy* Enemy = GetEnemyFromPool();
+			if (Enemy)
+			{
+				FVector Location = GetSpawnLocation();
+				Enemy->Reinitialize(EnemyDataTable, EnemyType, Location);
 
-			// Reinitialize and activate
-			Enemy->Reinitialize(EnemyDataTable, EnemyType, Location);
+				UE_LOG(LogTemp, Log, TEXT("SpawnEnemy: Spawned %s at %s (Active: %d, Pool: %d)"),
+					*EnemyType.ToString(), *Location.ToString(), ActiveEnemies.Num(), EnemyPool.Num());
+			}
+			else
+			{
+				UE_LOG(LogTemp, Warning, TEXT("SpawnEnemy: Failed to get enemy from pool"));
+			}
 		}
 	}
 
 	// Schedule next spawn
 	float SpawnRate = GetCurrentSpawnRate();
 	float Interval = 60.0f / SpawnRate;  // Convert spawns/min to seconds
+
+	UE_LOG(LogTemp, Log, TEXT("SpawnEnemy: Next spawn in %.2fs (rate: %.1f/min, active: %d)"),
+		Interval, SpawnRate, ActiveEnemies.Num());
 
 	World->GetTimerManager().SetTimer(
 		SpawnTimerHandle,
@@ -270,10 +290,15 @@ FName UEnemySpawnSubsystem::SelectEnemyType()
 		if (EnemyDataTable)
 		{
 			TArray<FName> RowNames = EnemyDataTable->GetRowNames();
+			UE_LOG(LogTemp, Log, TEXT("SelectEnemyType: No SpawnConfigTable, using EnemyDataTable with %d rows"), RowNames.Num());
 			if (RowNames.Num() > 0)
 			{
 				return RowNames[0];
 			}
+		}
+		else
+		{
+			UE_LOG(LogTemp, Error, TEXT("SelectEnemyType: Both SpawnConfigTable and EnemyDataTable are NULL!"));
 		}
 		return NAME_None;
 	}
