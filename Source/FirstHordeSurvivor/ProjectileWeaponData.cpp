@@ -39,44 +39,23 @@ FText UProjectileWeaponData::GetStatDescription(EWeaponStat Stat) const
 	}
 }
 
-float UProjectileWeaponData::GetStatValue(EWeaponStat Stat) const
+float UProjectileWeaponData::GetBaseStatValue(EWeaponStat Stat) const
 {
 	switch (Stat)
 	{
 	case EWeaponStat::ProjectileSpeed:
-		return ProjectileSpeed.GetCurrentValue();
+		return ProjectileSpeed;
 	case EWeaponStat::Range:
-		return Range.GetCurrentValue();
+		return Range;
 	case EWeaponStat::Penetration:
-		return Penetration.GetCurrentValue();
+		return static_cast<float>(Penetration);
 	case EWeaponStat::Area:
-		return Area.GetCurrentValue();
+		return Area;
 	case EWeaponStat::ProjectileCount:
-		return ProjectileCount.GetCurrentValue();
+		return static_cast<float>(ProjectileCount);
 	case EWeaponStat::Knockback:
-		return Knockback.GetCurrentValue();
+		return Knockback;
 	default:
-		return Super::GetStatValue(Stat);
-	}
-}
-
-FGameplayAttribute* UProjectileWeaponData::GetStatAttribute(EWeaponStat Stat)
-{
-	switch (Stat)
-	{
-	case EWeaponStat::ProjectileSpeed:
-		return &ProjectileSpeed;
-	case EWeaponStat::Range:
-		return &Range;
-	case EWeaponStat::Penetration:
-		return &Penetration;
-	case EWeaponStat::Area:
-		return &Area;
-	case EWeaponStat::ProjectileCount:
-		return &ProjectileCount;
-	case EWeaponStat::Knockback:
-		return &Knockback;
-	default:
-		return Super::GetStatAttribute(Stat);
+		return Super::GetBaseStatValue(Stat);
 	}
 }

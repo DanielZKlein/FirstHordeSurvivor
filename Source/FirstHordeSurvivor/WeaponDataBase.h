@@ -3,7 +3,6 @@
 #include "CoreMinimal.h"
 #include "Engine/DataAsset.h"
 #include "UpgradeTypes.h"
-#include "AttributeComponent.h"
 #include "WeaponDataBase.generated.h"
 
 class ASurvivorWeapon;
@@ -14,6 +13,9 @@ class USoundBase;
  * Abstract base class for all weapon data assets.
  * Each weapon archetype (Projectile, Aura, Chain, etc.) inherits from this
  * and defines which stats it uses and how they're interpreted.
+ *
+ * NOTE: These are BASE values only. Runtime modifiers (from upgrades) are
+ * tracked separately in the weapon actor, not here.
  */
 UCLASS(Abstract, BlueprintType)
 class FIRSTHORDESURVIVOR_API UWeaponDataBase : public UPrimaryDataAsset
@@ -38,12 +40,8 @@ public:
 	// ===== Universal Stats (all weapons have these) =====
 
 	// Base damage per hit/pulse/jump
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Stats")
-	FGameplayAttribute Damage = FGameplayAttribute(10.0f);
-
-	// Attack speed multiplier (affects fire rate, pulse rate, etc.)
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Stats")
-	FGameplayAttribute AttackSpeed = FGameplayAttribute(1.0f);
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Stats", meta = (ClampMin = "0"))
+	float BaseDamage = 10.0f;
 
 	// ===== Audio/Visual =====
 
@@ -70,29 +68,18 @@ public:
 	virtual FText GetStatDescription(EWeaponStat Stat) const;
 
 	/**
-	 * Gets the current value of a stat (base * modifiers).
+	 * Gets the BASE value of a stat (before any upgrades).
 	 * Override in archetypes that have additional stats.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Weapon")
-	virtual float GetStatValue(EWeaponStat Stat) const;
+	virtual float GetBaseStatValue(EWeaponStat Stat) const;
 
 	/**
-	 * Gets the gameplay attribute for a stat (for modification).
-	 * Returns nullptr if the stat isn't applicable to this archetype.
-	 */
-	virtual FGameplayAttribute* GetStatAttribute(EWeaponStat Stat);
-
-	/**
-	 * Returns the base RPM (rounds per minute) before AttackSpeed modifier.
+	 * Returns the base RPM (rounds per minute).
+	 * AttackSpeed upgrades multiply this at runtime.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Weapon")
 	virtual float GetBaseRPM() const { return 60.0f; }
-
-	/**
-	 * Returns the effective fire rate considering AttackSpeed modifier.
-	 */
-	UFUNCTION(BlueprintCallable, Category = "Weapon")
-	float GetEffectiveRPM() const { return GetBaseRPM() * AttackSpeed.GetCurrentValue(); }
 
 	/**
 	 * Spawns the appropriate weapon actor for this archetype.

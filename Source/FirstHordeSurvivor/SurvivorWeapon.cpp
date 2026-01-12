@@ -45,7 +45,7 @@ float ASurvivorWeapon::GetStat(EWeaponStat Stat) const
 	}
 
 	// Get base value from weapon data
-	float BaseValue = WeaponData->GetStatValue(Stat);
+	float BaseValue = WeaponData->GetBaseStatValue(Stat);
 
 	// Apply runtime modifiers if any
 	if (const FGameplayAttribute* Modifier = StatModifiers.Find(Stat))

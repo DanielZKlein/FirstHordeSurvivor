@@ -4,6 +4,7 @@
 TArray<EWeaponStat> UWeaponDataBase::GetApplicableStats() const
 {
 	// Base class only has universal stats
+	// AttackSpeed is always applicable (handled by weapon actor)
 	return { EWeaponStat::Damage, EWeaponStat::AttackSpeed };
 }
 
@@ -20,29 +21,16 @@ FText UWeaponDataBase::GetStatDescription(EWeaponStat Stat) const
 	}
 }
 
-float UWeaponDataBase::GetStatValue(EWeaponStat Stat) const
+float UWeaponDataBase::GetBaseStatValue(EWeaponStat Stat) const
 {
 	switch (Stat)
 	{
 	case EWeaponStat::Damage:
-		return Damage.GetCurrentValue();
+		return BaseDamage;
 	case EWeaponStat::AttackSpeed:
-		return AttackSpeed.GetCurrentValue();
+		return 1.0f; // AttackSpeed always starts at 1.0 (100%)
 	default:
 		return 0.0f;
-	}
-}
-
-FGameplayAttribute* UWeaponDataBase::GetStatAttribute(EWeaponStat Stat)
-{
-	switch (Stat)
-	{
-	case EWeaponStat::Damage:
-		return &Damage;
-	case EWeaponStat::AttackSpeed:
-		return &AttackSpeed;
-	default:
-		return nullptr;
 	}
 }
 
