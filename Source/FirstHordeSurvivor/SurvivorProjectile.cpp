@@ -101,35 +101,36 @@ void ASurvivorProjectile::OnOverlapBegin(UPrimitiveComponent* OverlappedComponen
 
 	if (AttrComp)
 	{
-		// Track that we hit this enemy
+		// Track that we directly hit this enemy (prevents re-hitting same enemy)
 		HitEnemies.Add(OtherActor);
 
-		// Apply damage and knockback
+		// Apply damage and knockback to the directly-hit enemy
 		DamageTarget(OtherActor);
 
-		// Check if we should explode on hit
+		// Effects based on whether this is an explosive or single-target projectile
 		if (AoERadius > 0.0f)
 		{
-			Explode();
-			Destroy();
-			return;
+			// Explosive projectile - damage nearby enemies (they can be hit by future explosions)
+			Explode(OtherActor);
+		}
+		else
+		{
+			// Single-target projectile - play hit effects
+			if (HitSound)
+			{
+				UGameplayStatics::PlaySoundAtLocation(this, HitSound, GetActorLocation());
+			}
+			if (HitVFX)
+			{
+				UNiagaraFunctionLibrary::SpawnSystemAtLocation(this, HitVFX, GetActorLocation());
+			}
 		}
 
-		// Play single-target hit effects
-		if (HitSound)
-		{
-			UGameplayStatics::PlaySoundAtLocation(this, HitSound, GetActorLocation());
-		}
-		if (HitVFX)
-		{
-			UNiagaraFunctionLibrary::SpawnSystemAtLocation(this, HitVFX, GetActorLocation());
-		}
-
-		// Check pierce
+		// Pierce logic applies to both AoE and non-AoE projectiles
 		if (RemainingPierces > 0)
 		{
 			RemainingPierces--;
-			// Continue flying - don't destroy
+			// Continue flying
 		}
 		else
 		{
@@ -165,7 +166,7 @@ void ASurvivorProjectile::DamageTarget(AActor* Target)
 	ApplyKnockback(Target);
 }
 
-void ASurvivorProjectile::Explode()
+void ASurvivorProjectile::Explode(AActor* DirectHitActor)
 {
 	// Play explosion effects
 	if (ExplosionSound)
@@ -192,15 +193,17 @@ void ASurvivorProjectile::Explode()
 		OverlappingActors
 	);
 
-	// Damage all enemies in radius
+	// Damage all enemies in radius EXCEPT:
+	// - The instigator (player)
+	// - The directly-hit enemy who triggered this explosion (already damaged by DamageTarget)
+	// Previously-hit enemies CAN be damaged by this explosion, allowing for stacking AoE damage
 	for (AActor* Actor : OverlappingActors)
 	{
-		if (Actor && Actor != GetInstigator() && !HitEnemies.Contains(Actor))
+		if (Actor && Actor != GetInstigator() && Actor != DirectHitActor)
 		{
 			UAttributeComponent* AttrComp = Cast<UAttributeComponent>(Actor->GetComponentByClass(UAttributeComponent::StaticClass()));
 			if (AttrComp)
 			{
-				HitEnemies.Add(Actor);
 				DamageTarget(Actor);
 			}
 		}

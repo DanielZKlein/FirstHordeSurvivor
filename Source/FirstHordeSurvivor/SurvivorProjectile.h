@@ -77,10 +77,10 @@ protected:
 
 	// ===== Visuals =====
 
-	UPROPERTY(EditDefaultsOnly, Category = "Visuals")
+	UPROPERTY(EditDefaultsOnly, Category = "0 - Visuals")
 	USoundBase* HitSound;
 
-	UPROPERTY(EditDefaultsOnly, Category = "Visuals")
+	UPROPERTY(EditDefaultsOnly, Category = "0 - Visuals")
 	UNiagaraSystem* HitVFX;
 
 	// Explosion effects (passed from weapon data)
@@ -98,8 +98,8 @@ protected:
 	/** Apply damage to a single target with knockback. */
 	void DamageTarget(AActor* Target);
 
-	/** Trigger explosion, damaging all enemies in radius. */
-	void Explode();
+	/** Trigger explosion, damaging all enemies in radius except the direct-hit actor. */
+	void Explode(AActor* DirectHitActor = nullptr);
 
 	/** Apply knockback force to an actor. */
 	void ApplyKnockback(AActor* Target);
