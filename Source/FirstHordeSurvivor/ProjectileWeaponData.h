@@ -7,6 +7,16 @@
 class ASurvivorProjectile;
 
 /**
+ * How multiple projectiles are fired when ProjectileCount > 1.
+ */
+UENUM(BlueprintType)
+enum class EMultiShotMode : uint8
+{
+	Volley,		// All projectiles fire simultaneously in a fan
+	Barrage,	// Projectiles fire sequentially, then cooldown starts
+};
+
+/**
  * Weapon data for projectile-based weapons (missiles, arrows, bullets).
  * Supports penetration (pierce), explosion (AoE), multi-shot, and range.
  *
@@ -50,6 +60,20 @@ public:
 	// Number of projectiles per shot (for multi-shot weapons)
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Stats", meta = (ClampMin = "1"))
 	int32 ProjectileCount = 1;
+
+	// ===== Multi-Shot Settings (only used when ProjectileCount > 1) =====
+
+	// How multiple projectiles are fired
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Multi-Shot", meta = (EditCondition = "ProjectileCount > 1"))
+	EMultiShotMode MultiShotMode = EMultiShotMode::Volley;
+
+	// Total spread angle in degrees for the projectile fan
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Multi-Shot", meta = (EditCondition = "ProjectileCount > 1", ClampMin = "0", ClampMax = "360"))
+	float SpreadAngle = 30.0f;
+
+	// Internal fire rate for Barrage mode (RPM between sequential shots within a burst)
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Multi-Shot", meta = (EditCondition = "ProjectileCount > 1 && MultiShotMode == EMultiShotMode::Barrage", ClampMin = "1"))
+	float BarrageRPM = 120.0f;
 
 	// Knockback force applied on hit
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Stats", meta = (ClampMin = "0"))

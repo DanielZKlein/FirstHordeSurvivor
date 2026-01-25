@@ -35,6 +35,8 @@ void ASurvivorWeapon::StartShooting()
 void ASurvivorWeapon::StopShooting()
 {
 	GetWorldTimerManager().ClearTimer(TimerHandle_Attack);
+	GetWorldTimerManager().ClearTimer(TimerHandle_Burst);
+	RemainingBurstProjectiles = 0;
 }
 
 float ASurvivorWeapon::GetStat(EWeaponStat Stat) const
@@ -122,77 +124,171 @@ void ASurvivorWeapon::Fire()
 	}
 
 	AActor* Target = FindBestTarget();
-	if (Target)
+	if (!Target)
 	{
-		// Use owner's location as the firing position
-		FVector SpawnLocation = GetOwner() ? GetOwner()->GetActorLocation() : GetActorLocation();
+		return;
+	}
 
-		// Calculate Direction
-		FVector Direction = (Target->GetActorLocation() - SpawnLocation).GetSafeNormal();
+	// Cache spawn info
+	BurstSpawnLocation = GetOwner() ? GetOwner()->GetActorLocation() : GetActorLocation();
+	FVector Direction = (Target->GetActorLocation() - BurstSpawnLocation).GetSafeNormal();
 
-		// Get projectile count (for multi-shot)
-		int32 ProjectileCount = FMath::Max(1, FMath::RoundToInt(GetStat(EWeaponStat::ProjectileCount)));
+	// Apply Precision to base direction (random deviation for the whole fan)
+	float HalfPrecision = ProjData->Precision * 0.5f;
+	FRotator BaseRot = Direction.Rotation();
+	BaseRot.Pitch += FMath::RandRange(-HalfPrecision, HalfPrecision);
+	BaseRot.Yaw += FMath::RandRange(-HalfPrecision, HalfPrecision);
+	BurstBaseDirection = BaseRot.Vector();
+	BurstBaseDirection.Z = 0.0f;
+	BurstBaseDirection.Normalize();
 
-		for (int32 i = 0; i < ProjectileCount; ++i)
+	// Get projectile count
+	TotalBurstProjectiles = FMath::Max(1, FMath::RoundToInt(GetStat(EWeaponStat::ProjectileCount)));
+
+	if (TotalBurstProjectiles == 1 || ProjData->MultiShotMode == EMultiShotMode::Volley)
+	{
+		// Volley mode: Fire all projectiles at once
+		for (int32 i = 0; i < TotalBurstProjectiles; ++i)
 		{
-			// Apply Cone Precision
-			float HalfCone = ProjData->Precision * 0.5f;
-
-			// For multi-shot, spread projectiles evenly within cone
-			FRotator Rot = Direction.Rotation();
-			if (ProjectileCount > 1)
-			{
-				// Spread evenly across the cone
-				float Spread = (i - (ProjectileCount - 1) * 0.5f) * (ProjData->Precision / (ProjectileCount - 1));
-				Rot.Yaw += Spread;
-			}
-			else
-			{
-				// Single projectile: random within cone
-				Rot.Pitch += FMath::RandRange(-HalfCone, HalfCone);
-				Rot.Yaw += FMath::RandRange(-HalfCone, HalfCone);
-			}
-
-			FVector FinalDir = Rot.Vector();
-			FinalDir.Z = 0.0f;
-			FinalDir.Normalize();
-			Rot = FinalDir.Rotation();
-
-			// Spawn Projectile
-			FTransform SpawnTM(Rot, SpawnLocation);
-
-			FActorSpawnParameters SpawnParams;
-			SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-			SpawnParams.Instigator = Cast<APawn>(GetOwner());
-
-			ASurvivorProjectile* Proj = GetWorld()->SpawnActor<ASurvivorProjectile>(ProjData->ProjectileClass, SpawnTM, SpawnParams);
-			if (Proj)
-			{
-				// Pass stats to projectile using the modifier-applied values
-				Proj->Initialize(
-					GetStat(EWeaponStat::ProjectileSpeed),
-					GetStat(EWeaponStat::Damage),
-					GetStat(EWeaponStat::Range),
-					FMath::RoundToInt(GetStat(EWeaponStat::Penetration)),
-					GetStat(EWeaponStat::Area),
-					GetStat(EWeaponStat::Knockback),
-					ProjData->ExplosionSound,
-					ProjData->ExplosionVFX
-				);
-			}
+			FireSingleProjectile(i, TotalBurstProjectiles);
 		}
 
-		// Play Sound
+		// Play attack sound/VFX once for the volley
 		if (WeaponData->AttackSound)
 		{
-			UGameplayStatics::PlaySoundAtLocation(this, WeaponData->AttackSound, SpawnLocation);
+			UGameplayStatics::PlaySoundAtLocation(this, WeaponData->AttackSound, BurstSpawnLocation);
 		}
-
-		// Play VFX
 		if (WeaponData->AttackVFX)
 		{
-			UNiagaraFunctionLibrary::SpawnSystemAtLocation(this, WeaponData->AttackVFX, SpawnLocation);
+			UNiagaraFunctionLibrary::SpawnSystemAtLocation(this, WeaponData->AttackVFX, BurstSpawnLocation);
 		}
+	}
+	else
+	{
+		// Barrage mode: Fire projectiles sequentially
+		// Stop the repeating timer - we'll restart it after burst completes
+		StopShooting();
+		GetWorldTimerManager().ClearTimer(TimerHandle_Burst);
+
+		// Fire first projectile
+		RemainingBurstProjectiles = TotalBurstProjectiles;
+		FireSingleProjectile(0, TotalBurstProjectiles);
+		RemainingBurstProjectiles--;
+
+		// Play sound/VFX for first shot
+		if (WeaponData->AttackSound)
+		{
+			UGameplayStatics::PlaySoundAtLocation(this, WeaponData->AttackSound, BurstSpawnLocation);
+		}
+		if (WeaponData->AttackVFX)
+		{
+			UNiagaraFunctionLibrary::SpawnSystemAtLocation(this, WeaponData->AttackVFX, BurstSpawnLocation);
+		}
+
+		// Schedule next projectile in burst
+		if (RemainingBurstProjectiles > 0)
+		{
+			float BurstDelay = 60.0f / ProjData->BarrageRPM;
+			GetWorldTimerManager().SetTimer(TimerHandle_Burst, this, &ASurvivorWeapon::ContinueBurst, BurstDelay, false);
+		}
+		else
+		{
+			ScheduleNextAttack();
+		}
+	}
+}
+
+void ASurvivorWeapon::FireSingleProjectile(int32 ProjectileIndex, int32 TotalProjectiles)
+{
+	UProjectileWeaponData* ProjData = GetProjectileData();
+	if (!ProjData || !ProjData->ProjectileClass)
+	{
+		return;
+	}
+
+	// Calculate direction for this projectile in the spread pattern
+	FRotator Rot = BurstBaseDirection.Rotation();
+
+	if (TotalProjectiles > 1)
+	{
+		// Spread evenly across SpreadAngle
+		float HalfSpread = ProjData->SpreadAngle * 0.5f;
+		float SpreadOffset = -HalfSpread + (ProjData->SpreadAngle * ProjectileIndex / (TotalProjectiles - 1));
+		Rot.Yaw += SpreadOffset;
+	}
+
+	FVector FinalDir = Rot.Vector();
+	FinalDir.Z = 0.0f;
+	FinalDir.Normalize();
+	Rot = FinalDir.Rotation();
+
+	// Spawn Projectile
+	FTransform SpawnTM(Rot, BurstSpawnLocation);
+
+	FActorSpawnParameters SpawnParams;
+	SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+	SpawnParams.Instigator = Cast<APawn>(GetOwner());
+
+	ASurvivorProjectile* Proj = GetWorld()->SpawnActor<ASurvivorProjectile>(ProjData->ProjectileClass, SpawnTM, SpawnParams);
+	if (Proj)
+	{
+		Proj->Initialize(
+			GetStat(EWeaponStat::ProjectileSpeed),
+			GetStat(EWeaponStat::Damage),
+			GetStat(EWeaponStat::Range),
+			FMath::RoundToInt(GetStat(EWeaponStat::Penetration)),
+			GetStat(EWeaponStat::Area),
+			GetStat(EWeaponStat::Knockback),
+			ProjData->ExplosionSound,
+			ProjData->ExplosionVFX
+		);
+	}
+}
+
+void ASurvivorWeapon::ContinueBurst()
+{
+	UProjectileWeaponData* ProjData = GetProjectileData();
+	if (!ProjData)
+	{
+		ScheduleNextAttack();
+		return;
+	}
+
+	// Fire next projectile in burst
+	int32 CurrentIndex = TotalBurstProjectiles - RemainingBurstProjectiles;
+	FireSingleProjectile(CurrentIndex, TotalBurstProjectiles);
+	RemainingBurstProjectiles--;
+
+	// Play sound/VFX for each shot in barrage
+	if (WeaponData->AttackSound)
+	{
+		UGameplayStatics::PlaySoundAtLocation(this, WeaponData->AttackSound, BurstSpawnLocation);
+	}
+	if (WeaponData->AttackVFX)
+	{
+		UNiagaraFunctionLibrary::SpawnSystemAtLocation(this, WeaponData->AttackVFX, BurstSpawnLocation);
+	}
+
+	// More projectiles to fire?
+	if (RemainingBurstProjectiles > 0)
+	{
+		float BurstDelay = 60.0f / ProjData->BarrageRPM;
+		GetWorldTimerManager().SetTimer(TimerHandle_Burst, this, &ASurvivorWeapon::ContinueBurst, BurstDelay, false);
+	}
+	else
+	{
+		// Burst complete, start cooldown
+		ScheduleNextAttack();
+	}
+}
+
+void ASurvivorWeapon::ScheduleNextAttack()
+{
+	float RPM = GetEffectiveRPM();
+	if (RPM > 0.0f)
+	{
+		float Delay = 60.0f / RPM;
+		GetWorldTimerManager().SetTimer(TimerHandle_Attack, this, &ASurvivorWeapon::Fire, Delay, false);
 	}
 }
 

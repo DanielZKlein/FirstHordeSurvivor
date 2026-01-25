@@ -57,10 +57,17 @@ public:
 
 protected:
 	FTimerHandle TimerHandle_Attack;
+	FTimerHandle TimerHandle_Burst;
 
 	// Runtime modifiers applied on top of base weapon stats
 	UPROPERTY()
 	TMap<EWeaponStat, FGameplayAttribute> StatModifiers;
+
+	// Barrage mode state
+	int32 RemainingBurstProjectiles = 0;
+	int32 TotalBurstProjectiles = 0;
+	FVector BurstBaseDirection;
+	FVector BurstSpawnLocation;
 
 	void Fire();
 	AActor* FindBestTarget();
@@ -70,4 +77,13 @@ protected:
 
 	// Calculate effective fire rate considering modifiers
 	float GetEffectiveRPM() const;
+
+	// Fire a single projectile with given index in the spread pattern
+	void FireSingleProjectile(int32 ProjectileIndex, int32 TotalProjectiles);
+
+	// Continue firing burst projectiles (Barrage mode)
+	void ContinueBurst();
+
+	// Schedule the next attack after cooldown
+	void ScheduleNextAttack();
 };
