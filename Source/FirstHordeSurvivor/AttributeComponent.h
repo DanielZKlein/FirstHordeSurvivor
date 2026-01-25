@@ -116,11 +116,15 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Attributes")
 	float GetCurrentHealth() const;
 
-protected:
-    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Attributes")
-    float InvulnerabilityDuration = 0.5f;
+	// Invulnerability (set to false for enemies - they shouldn't have i-frames)
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Attributes")
+	bool bUseInvulnerability = true;
 
-    bool bIsInvulnerable;
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Attributes", meta = (EditCondition = "bUseInvulnerability"))
+	float InvulnerabilityDuration = 0.5f;
+
+protected:
+    bool bIsInvulnerable = false;
     FTimerHandle TimerHandle_Invulnerability;
 
     void EndInvulnerability();

@@ -48,8 +48,8 @@ void UAttributeComponent::ApplyRegen()
 
 bool UAttributeComponent::ApplyHealthChange(float Delta)
 {
-    // I-Frame Check for Damage
-    if (Delta < 0.0f && bIsInvulnerable)
+    // I-Frame Check for Damage (player only)
+    if (bUseInvulnerability && Delta < 0.0f && bIsInvulnerable)
     {
         return false;
     }
@@ -60,11 +60,11 @@ bool UAttributeComponent::ApplyHealthChange(float Delta)
 	CurrentHealth = FMath::Clamp(CurrentHealth + Delta, 0.0f, MaxHP);
 
 	float ActualDelta = CurrentHealth - OldHealth;
-	
+
 	if (ActualDelta != 0.0f)
 	{
-        // Apply I-Frames if we took damage
-        if (ActualDelta < 0.0f && InvulnerabilityDuration > 0.0f)
+        // Apply I-Frames if we took damage (player only)
+        if (bUseInvulnerability && ActualDelta < 0.0f && InvulnerabilityDuration > 0.0f)
         {
             bIsInvulnerable = true;
             if (GetWorld())

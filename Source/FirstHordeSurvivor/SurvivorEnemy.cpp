@@ -19,6 +19,7 @@ ASurvivorEnemy::ASurvivorEnemy()
 	PrimaryActorTick.bCanEverTick = true;
 
 	AttributeComp = CreateDefaultSubobject<UAttributeComponent>(TEXT("AttributeComp"));
+	AttributeComp->bUseInvulnerability = false;  // Enemies don't get i-frames
 
 	EnemyMeshComp = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("EnemyMeshComp"));
 	EnemyMeshComp->SetupAttachment(GetCapsuleComponent());
