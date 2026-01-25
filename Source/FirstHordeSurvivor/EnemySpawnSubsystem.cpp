@@ -369,12 +369,23 @@ float UEnemySpawnSubsystem::GetCurrentSpawnRate()
 	float BaseRate = BaseSpawnRate + (ElapsedMinutes * SpawnRateGrowth);
 
 	// Responsive bonus - spawn faster when fewer enemies on map
+	float TargetCount = GetCurrentTargetCount();
 	int32 CurrentCount = ActiveEnemies.Num();
-	float EnemyDeficit = FMath::Max(0.0f, TargetEnemyCount - CurrentCount) / TargetEnemyCount;
+	float EnemyDeficit = (TargetCount > 0.0f) ? FMath::Max(0.0f, TargetCount - CurrentCount) / TargetCount : 0.0f;
 	float ResponsiveBonus = MaxResponsiveBonus * EnemyDeficit * Responsiveness;
 
 	// Apply cap
 	return FMath::Min(BaseRate + ResponsiveBonus, MaxSpawnRate);
+}
+
+float UEnemySpawnSubsystem::GetCurrentTargetCount()
+{
+	UWorld* World = GetWorld();
+	float ElapsedMinutes = World ? World->GetTimeSeconds() / 60.0f : 0.0f;
+
+	// Target count increases over time, capped at MaxTargetCount
+	float TargetCount = BaseTargetCount + (ElapsedMinutes * TargetCountGrowth);
+	return FMath::Min(TargetCount, MaxTargetCount);
 }
 
 void UEnemySpawnSubsystem::CacheFloorBounds()
@@ -450,8 +461,9 @@ void UEnemySpawnSubsystem::UpdateDebugHUD()
 
 	// Calculate spawn rate components
 	float TimeBasedRate = BaseSpawnRate + (ElapsedMinutes * SpawnRateGrowth);
+	float TargetCount = GetCurrentTargetCount();
 	int32 CurrentCount = ActiveEnemies.Num();
-	float EnemyDeficit = FMath::Max(0.0f, TargetEnemyCount - CurrentCount) / TargetEnemyCount;
+	float EnemyDeficit = (TargetCount > 0.0f) ? FMath::Max(0.0f, TargetCount - CurrentCount) / TargetCount : 0.0f;
 	float ResponsiveBonus = MaxResponsiveBonus * EnemyDeficit * Responsiveness;
 	float TotalRate = FMath::Min(TimeBasedRate + ResponsiveBonus, MaxSpawnRate);
 	float SpawnsPerSecond = TotalRate / 60.0f;
@@ -522,7 +534,7 @@ void UEnemySpawnSubsystem::UpdateDebugHUD()
 		FString::Printf(TEXT("  Base+Time: %.1f/min"), TimeBasedRate));
 
 	GEngine->AddOnScreenDebugMessage(106, 0.5f, ResponsiveBonus > 10.0f ? FColor::Orange : FColor::White,
-		FString::Printf(TEXT("  Responsive Bonus: +%.1f/min (%.0f%% deficit)"), ResponsiveBonus, EnemyDeficit * 100.0f));
+		FString::Printf(TEXT("  Responsive: +%.1f/min (target: %.0f, deficit: %.0f%%)"), ResponsiveBonus, TargetCount, EnemyDeficit * 100.0f));
 
 	GEngine->AddOnScreenDebugMessage(107, 0.5f, FColor::Cyan,
 		FString::Printf(TEXT("Active Types: %s"), ActiveTypes.Len() > 0 ? *ActiveTypes : TEXT("(none)")));

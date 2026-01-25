@@ -76,17 +76,23 @@ public:
 
 	// Spawn Rate Settings
 	UPROPERTY(EditAnywhere, Category = "Spawn Rate")
-	float BaseSpawnRate = 60.0f;  // Spawns per minute at game start
+	float BaseSpawnRate = 10.0f;  // Spawns per minute at game start
 
 	UPROPERTY(EditAnywhere, Category = "Spawn Rate")
-	float SpawnRateGrowth = 10.0f;  // Extra spawns/min per minute elapsed
+	float SpawnRateGrowth = 5.0f;  // Extra spawns/min per minute elapsed
 
 	UPROPERTY(EditAnywhere, Category = "Spawn Rate")
 	float MaxSpawnRate = 2000.0f;  // Hard cap on spawns per minute
 
-	// Responsive System
+	// Responsive System - Target Enemy Count (scales with time)
 	UPROPERTY(EditAnywhere, Category = "Spawn Rate")
-	float TargetEnemyCount = 120.0f;  // "Full" enemy count for responsive calc
+	float BaseTargetCount = 50.0f;  // Target enemy count at game start
+
+	UPROPERTY(EditAnywhere, Category = "Spawn Rate")
+	float TargetCountGrowth = 20.0f;  // Extra target enemies per minute elapsed
+
+	UPROPERTY(EditAnywhere, Category = "Spawn Rate")
+	float MaxTargetCount = 300.0f;  // Cap on target count (should be <= MaxEnemiesOnMap)
 
 	UPROPERTY(EditAnywhere, Category = "Spawn Rate")
 	float MaxResponsiveBonus = 200.0f;  // Max extra spawns/min when few enemies
@@ -139,6 +145,7 @@ protected:
 	FVector GetSpawnLocation();
 	FName SelectEnemyType();
 	float GetCurrentSpawnRate();
+	float GetCurrentTargetCount();
 	void LoadDefaultAssets();
 	void CacheFloorBounds();
 	FVector ClampToFloorBounds(FVector Location);
