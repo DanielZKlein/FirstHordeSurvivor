@@ -207,6 +207,7 @@ void ASurvivorWeapon::FireSingleProjectile(int32 ProjectileIndex, int32 TotalPro
 	}
 
 	// Calculate direction for this projectile in the spread pattern
+	// Direction is locked from when the burst started (BurstBaseDirection)
 	FRotator Rot = BurstBaseDirection.Rotation();
 
 	if (TotalProjectiles > 1)
@@ -222,8 +223,10 @@ void ASurvivorWeapon::FireSingleProjectile(int32 ProjectileIndex, int32 TotalPro
 	FinalDir.Normalize();
 	Rot = FinalDir.Rotation();
 
-	// Spawn Projectile
-	FTransform SpawnTM(Rot, BurstSpawnLocation);
+	// Spawn at current owner location (not cached location)
+	// This allows barrage projectiles to follow the player while maintaining direction
+	FVector SpawnLocation = GetOwner() ? GetOwner()->GetActorLocation() : GetActorLocation();
+	FTransform SpawnTM(Rot, SpawnLocation);
 
 	FActorSpawnParameters SpawnParams;
 	SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
@@ -259,14 +262,15 @@ void ASurvivorWeapon::ContinueBurst()
 	FireSingleProjectile(CurrentIndex, TotalBurstProjectiles);
 	RemainingBurstProjectiles--;
 
-	// Play sound/VFX for each shot in barrage
+	// Play sound/VFX at current owner location
+	FVector CurrentLocation = GetOwner() ? GetOwner()->GetActorLocation() : GetActorLocation();
 	if (WeaponData->AttackSound)
 	{
-		UGameplayStatics::PlaySoundAtLocation(this, WeaponData->AttackSound, BurstSpawnLocation);
+		UGameplayStatics::PlaySoundAtLocation(this, WeaponData->AttackSound, CurrentLocation);
 	}
 	if (WeaponData->AttackVFX)
 	{
-		UNiagaraFunctionLibrary::SpawnSystemAtLocation(this, WeaponData->AttackVFX, BurstSpawnLocation);
+		UNiagaraFunctionLibrary::SpawnSystemAtLocation(this, WeaponData->AttackVFX, CurrentLocation);
 	}
 
 	// More projectiles to fire?

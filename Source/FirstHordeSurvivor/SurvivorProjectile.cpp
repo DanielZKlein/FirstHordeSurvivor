@@ -8,6 +8,7 @@
 #include "NiagaraFunctionLibrary.h"
 #include "GameFramework/Character.h"
 #include "GameFramework/CharacterMovementComponent.h"
+#include "SurvivorEnemy.h"
 
 ASurvivorProjectile::ASurvivorProjectile()
 {
@@ -222,9 +223,16 @@ void ASurvivorProjectile::ApplyKnockback(AActor* Target)
 	KnockbackDir.Z = 0.0f; // Keep horizontal
 	KnockbackDir.Normalize();
 
-	// If target is a character, use LaunchCharacter
-	if (ACharacter* Character = Cast<ACharacter>(Target))
+	// Use enemy's knockback system for momentum transfer
+	if (ASurvivorEnemy* Enemy = Cast<ASurvivorEnemy>(Target))
 	{
+		// Scale knockback by enemy's HP-based resistance (lighter = more knockback)
+		float ScaledKnockback = Knockback * Enemy->GetKnockbackResistance();
+		Enemy->ApplyKnockback(KnockbackDir * ScaledKnockback);
+	}
+	else if (ACharacter* Character = Cast<ACharacter>(Target))
+	{
+		// Fallback for non-enemy characters
 		Character->LaunchCharacter(KnockbackDir * Knockback, true, false);
 	}
 }

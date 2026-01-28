@@ -67,6 +67,14 @@ public:
 	float HitFlashHoldTimer = 0.0f;
 	float LastKnownHealth = 0.0f;
 
+	// Knockback state
+	UPROPERTY()
+	FVector KnockbackVelocity = FVector::ZeroVector;
+
+	// Enemies we've already transferred momentum to this knockback (prevents double-hits)
+	UPROPERTY()
+	TSet<ASurvivorEnemy*> KnockbackHitEnemies;
+
 	// Functions
 	UFUNCTION()
 	void OnOverlapBegin(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult);
@@ -87,7 +95,22 @@ public:
 	// Helper to apply stats from DataTable row
 	void InitializeFromData();
 
+	// Knockback system - applies impulse and handles momentum transfer on collision
+	UFUNCTION(BlueprintCallable, Category = "Combat")
+	void ApplyKnockback(FVector Impulse);
+
+	// Get mass for knockback calculations (uses MaxHealth as proxy)
+	float GetKnockbackMass() const;
+
+	// Get knockback multiplier based on HP (lighter enemies get knocked back more)
+	// Returns 1.0 for light enemies, scales down to minimum for heavy enemies
+	float GetKnockbackResistance() const;
+
 	// Pooling support
 	void Deactivate();
 	void Reinitialize(UDataTable* DataTable, FName RowName, FVector Location);
+
+protected:
+	// Process knockback movement and collisions
+	void ProcessKnockback(float DeltaTime);
 };

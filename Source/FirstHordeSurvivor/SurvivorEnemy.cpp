@@ -4,6 +4,7 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "Kismet/GameplayStatics.h"
+#include "Kismet/KismetSystemLibrary.h"
 
 #include "Components/StaticMeshComponent.h"
 #include "Components/SphereComponent.h"
@@ -13,6 +14,36 @@
 #include "EnemySpawnSubsystem.h"
 #include "Blueprint/UserWidget.h"
 #include "Components/ProgressBar.h"
+
+// Knockback tuning constants
+namespace KnockbackSettings
+{
+	// How fast knockback decays (units/sec lost per second)
+	constexpr float FrictionDeceleration = 1000.0f;
+
+	// Minimum velocity before knockback stops entirely
+	constexpr float MinVelocityThreshold = 50.0f;
+
+	// How much momentum the pusher retains after hitting another enemy (0.5 = 50%)
+	constexpr float PusherMomentumRetention = 0.9f;
+
+	// How much of the pusher's momentum transfers to the pushed enemy
+	constexpr float MomentumTransferRatio = 0.95f;
+
+	// Radius to check for enemy collisions during knockback
+	constexpr float CollisionCheckRadius = 80.0f;
+
+	// === Initial knockback scaling by enemy HP ===
+
+	// HP at or below this gets full knockback (100%)
+	constexpr float LightEnemyHP = 20.0f;
+
+	// HP at or above this gets minimum knockback
+	constexpr float HeavyEnemyHP = 500.0f;
+
+	// Minimum knockback multiplier for heavy enemies (10% = 0.1)
+	constexpr float MinKnockbackMultiplier = 0.1f;
+}
 
 ASurvivorEnemy::ASurvivorEnemy()
 {
@@ -135,6 +166,9 @@ void ASurvivorEnemy::InitializeFromData()
 void ASurvivorEnemy::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
+
+	// Process knockback momentum and collisions
+	ProcessKnockback(DeltaTime);
 
 	// Simple Chase Logic
 	// We don't use AIController for thousands of units usually, but for v0.1 simple AddMovementInput is fine
@@ -353,6 +387,131 @@ void ASurvivorEnemy::OnHealthChanged(UAttributeComponent* Component, bool bIsRes
 	}
 }
 
+void ASurvivorEnemy::ApplyKnockback(FVector Impulse)
+{
+	// Add to existing knockback velocity (allows stacking)
+	KnockbackVelocity += Impulse;
+
+	// Clear hit tracking for new knockback chain
+	KnockbackHitEnemies.Empty();
+}
+
+float ASurvivorEnemy::GetKnockbackMass() const
+{
+	// Use max HP as mass proxy
+	if (AttributeComp)
+	{
+		return FMath::Max(1.0f, AttributeComp->MaxHealth.GetCurrentValue());
+	}
+	return 100.0f; // Default mass
+}
+
+float ASurvivorEnemy::GetKnockbackResistance() const
+{
+	float MaxHP = GetKnockbackMass();
+
+	// Below light threshold: full knockback
+	if (MaxHP <= KnockbackSettings::LightEnemyHP)
+	{
+		return 1.0f;
+	}
+
+	// Above heavy threshold: minimum knockback
+	if (MaxHP >= KnockbackSettings::HeavyEnemyHP)
+	{
+		return KnockbackSettings::MinKnockbackMultiplier;
+	}
+
+	// Linear interpolation between light and heavy
+	float Alpha = (MaxHP - KnockbackSettings::LightEnemyHP) / (KnockbackSettings::HeavyEnemyHP - KnockbackSettings::LightEnemyHP);
+	return FMath::Lerp(1.0f, KnockbackSettings::MinKnockbackMultiplier, Alpha);
+}
+
+void ASurvivorEnemy::ProcessKnockback(float DeltaTime)
+{
+	// Skip if not being knocked back
+	if (KnockbackVelocity.IsNearlyZero(KnockbackSettings::MinVelocityThreshold))
+	{
+		KnockbackVelocity = FVector::ZeroVector;
+		KnockbackHitEnemies.Empty();
+		return;
+	}
+
+	// Move by knockback velocity
+	FVector Delta = KnockbackVelocity * DeltaTime;
+	FVector NewLocation = GetActorLocation() + Delta;
+	SetActorLocation(NewLocation);
+
+	// Check for collisions with other enemies
+	TArray<AActor*> OverlappingActors;
+	TArray<TEnumAsByte<EObjectTypeQuery>> ObjectTypes;
+	ObjectTypes.Add(UEngineTypes::ConvertToObjectType(ECollisionChannel::ECC_Pawn));
+
+	TArray<AActor*> IgnoreActors;
+	IgnoreActors.Add(this);
+
+	UKismetSystemLibrary::SphereOverlapActors(
+		this,
+		GetActorLocation(),
+		KnockbackSettings::CollisionCheckRadius,
+		ObjectTypes,
+		ASurvivorEnemy::StaticClass(),
+		IgnoreActors,
+		OverlappingActors
+	);
+
+	// Transfer momentum to hit enemies
+	for (AActor* Actor : OverlappingActors)
+	{
+		ASurvivorEnemy* OtherEnemy = Cast<ASurvivorEnemy>(Actor);
+		if (!OtherEnemy || KnockbackHitEnemies.Contains(OtherEnemy))
+		{
+			continue;
+		}
+
+		// Mark as hit to prevent double-transfer
+		KnockbackHitEnemies.Add(OtherEnemy);
+
+		// Calculate momentum transfer based on mass
+		float MyMass = GetKnockbackMass();
+		float OtherMass = OtherEnemy->GetKnockbackMass();
+		float MassRatio = MyMass / (MyMass + OtherMass);
+
+		// Direction from me to them
+		FVector PushDir = (OtherEnemy->GetActorLocation() - GetActorLocation()).GetSafeNormal();
+		PushDir.Z = 0.0f;
+		if (PushDir.IsNearlyZero())
+		{
+			PushDir = KnockbackVelocity.GetSafeNormal();
+		}
+		PushDir.Normalize();
+
+		// Transfer momentum: heavier enemies get pushed less
+		float TransferSpeed = KnockbackVelocity.Size() * KnockbackSettings::MomentumTransferRatio * MassRatio;
+		FVector TransferVelocity = PushDir * TransferSpeed;
+
+		// Apply to the other enemy (this can chain!)
+		OtherEnemy->ApplyKnockback(TransferVelocity);
+
+		// Reduce our own velocity
+		KnockbackVelocity *= KnockbackSettings::PusherMomentumRetention;
+	}
+
+	// Apply friction deceleration
+	float Speed = KnockbackVelocity.Size();
+	float NewSpeed = FMath::Max(0.0f, Speed - KnockbackSettings::FrictionDeceleration * DeltaTime);
+
+	if (NewSpeed < KnockbackSettings::MinVelocityThreshold)
+	{
+		KnockbackVelocity = FVector::ZeroVector;
+		KnockbackHitEnemies.Empty();
+	}
+	else
+	{
+		KnockbackVelocity = KnockbackVelocity.GetSafeNormal() * NewSpeed;
+	}
+}
+
 void ASurvivorEnemy::Deactivate()
 {
 	// Hide and disable
@@ -375,6 +534,10 @@ void ASurvivorEnemy::Deactivate()
 	// Reset state
 	bIsOverlappingPlayer = false;
 	TargetPlayer = nullptr;
+
+	// Reset knockback
+	KnockbackVelocity = FVector::ZeroVector;
+	KnockbackHitEnemies.Empty();
 }
 
 void ASurvivorEnemy::Reinitialize(UDataTable* DataTable, FName RowName, FVector Location)
@@ -445,4 +608,8 @@ void ASurvivorEnemy::Reinitialize(UDataTable* DataTable, FName RowName, FVector 
 
 	// Find player target
 	TargetPlayer = Cast<ASurvivorCharacter>(UGameplayStatics::GetPlayerCharacter(this, 0));
+
+	// Reset knockback
+	KnockbackVelocity = FVector::ZeroVector;
+	KnockbackHitEnemies.Empty();
 }

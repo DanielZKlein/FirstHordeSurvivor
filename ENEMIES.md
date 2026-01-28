@@ -84,6 +84,75 @@ AvoidanceWeight = 0.5f
 - Enemies render to custom depth buffer
 - Post-process material draws red outlines around enemies only
 
+## Knockback System
+
+Enemies have a momentum-based knockback system with inelastic collisions. When knocked back into other enemies, momentum transfers and can chain through crowds.
+
+### How It Works
+
+1. **Initial Hit**: Projectile applies knockback impulse scaled by enemy's HP
+2. **Movement**: Enemy moves by `KnockbackVelocity` each tick
+3. **Collision**: On overlap with another enemy, momentum transfers based on mass ratio
+4. **Chain**: Pushed enemies can push other enemies, spreading momentum through the horde
+5. **Decay**: Velocity decreases via friction until it stops
+
+### HP-Based Knockback Resistance
+
+Initial knockback scales with enemy max HP (lighter enemies fly farther):
+
+| Max HP | Knockback Multiplier |
+|--------|---------------------|
+| ≤20 | 100% (full) |
+| 260 | ~55% (midpoint) |
+| ≥500 | 10% (minimum) |
+
+Linear interpolation between thresholds.
+
+### Tuning Constants
+
+Located in `SurvivorEnemy.cpp` namespace `KnockbackSettings`:
+
+```cpp
+// Velocity decay
+FrictionDeceleration = 1000.0f    // Units/sec lost per second
+MinVelocityThreshold = 50.0f      // Stop knockback below this speed
+
+// Momentum transfer on enemy-enemy collision
+PusherMomentumRetention = 0.9f    // Pusher keeps 90% after hitting someone
+MomentumTransferRatio = 0.95f     // 95% of pusher's momentum transfers
+CollisionCheckRadius = 80.0f      // How close enemies need to be to collide
+
+// Initial knockback scaling by HP
+LightEnemyHP = 20.0f              // At or below: 100% knockback
+HeavyEnemyHP = 500.0f             // At or above: minimum knockback
+MinKnockbackMultiplier = 0.1f     // Heavy enemies still get 10%
+```
+
+### Key Functions
+
+```cpp
+// Apply knockback impulse (called by projectile)
+void ASurvivorEnemy::ApplyKnockback(FVector Impulse);
+
+// Get HP-based resistance multiplier (1.0 for light, 0.1 for heavy)
+float ASurvivorEnemy::GetKnockbackResistance() const;
+
+// Get mass for collision calculations (returns MaxHealth)
+float ASurvivorEnemy::GetKnockbackMass() const;
+
+// Called each tick to process movement and collisions
+void ASurvivorEnemy::ProcessKnockback(float DeltaTime);
+```
+
+### State Variables
+
+```cpp
+FVector KnockbackVelocity;              // Current knockback momentum
+TSet<ASurvivorEnemy*> KnockbackHitEnemies;  // Prevents double-hits in one chain
+```
+
+Both are reset in `Deactivate()` and `Reinitialize()` for pooling.
+
 ## Creating New Enemy Types
 
 1. Open `DT_Enemies` DataTable
