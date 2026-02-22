@@ -242,6 +242,8 @@ void ASurvivorWeapon::FireSingleProjectile(int32 ProjectileIndex, int32 TotalPro
 			FMath::RoundToInt(GetStat(EWeaponStat::Penetration)),
 			GetStat(EWeaponStat::Area),
 			GetStat(EWeaponStat::Knockback),
+			ProjData->ImpactSound,
+			ProjData->ImpactVFX,
 			ProjData->ExplosionSound,
 			ProjData->ExplosionVFX
 		);

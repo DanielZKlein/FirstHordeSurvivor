@@ -15,3 +15,4 @@
 - When you make changes to how systems in the game work, update the corresponding .md file or create one.
 - When updating an .md file, always put a "last changed" with the date into it.
 - When reading an .md file that's badly out of date, make sure to double check if the underlying code has changed or not.
+- If you have to run searches across the file system, using find or ls or any other tools, update a relevant .md file leaving reminders for yourself in future so you won't have to run the same search again.

@@ -52,6 +52,8 @@ void ASurvivorProjectile::Initialize(
 	int32 PierceCount,
 	float ExplosionRadius,
 	float KnockbackForce,
+	USoundBase* InImpactSound,
+	UNiagaraSystem* InImpactVFX,
 	USoundBase* InExplosionSound,
 	UNiagaraSystem* InExplosionVFX)
 {
@@ -64,6 +66,11 @@ void ASurvivorProjectile::Initialize(
 	RemainingPierces = PierceCount;
 	AoERadius = ExplosionRadius;
 	Knockback = KnockbackForce;
+
+	// DataAsset impact effects override Blueprint defaults if provided
+	if (InImpactSound) { HitSound = InImpactSound; }
+	if (InImpactVFX) { HitVFX = InImpactVFX; }
+
 	ExplosionSound = InExplosionSound;
 	ExplosionVFX = InExplosionVFX;
 }

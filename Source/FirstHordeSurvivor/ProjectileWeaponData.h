@@ -8,6 +8,7 @@ class ASurvivorProjectile;
 
 /**
  * How multiple projectiles are fired when ProjectileCount > 1.
+ * Can be pre-configured even with ProjectileCount = 1 for future upgrades.
  */
 UENUM(BlueprintType)
 enum class EMultiShotMode : uint8
@@ -61,18 +62,18 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Stats", meta = (ClampMin = "1"))
 	int32 ProjectileCount = 1;
 
-	// ===== Multi-Shot Settings (only used when ProjectileCount > 1) =====
+	// ===== Multi-Shot Settings (configurable even at ProjectileCount = 1 for upgrade readiness) =====
 
 	// How multiple projectiles are fired
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Multi-Shot", meta = (EditCondition = "ProjectileCount > 1"))
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Multi-Shot")
 	EMultiShotMode MultiShotMode = EMultiShotMode::Volley;
 
 	// Total spread angle in degrees for the projectile fan
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Multi-Shot", meta = (EditCondition = "ProjectileCount > 1", ClampMin = "0", ClampMax = "360"))
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Multi-Shot", meta = (ClampMin = "0", ClampMax = "360"))
 	float SpreadAngle = 30.0f;
 
 	// Internal fire rate for Barrage mode (RPM between sequential shots within a burst)
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Multi-Shot", meta = (EditCondition = "ProjectileCount > 1 && MultiShotMode == EMultiShotMode::Barrage", ClampMin = "1"))
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Multi-Shot", meta = (EditCondition = "MultiShotMode == EMultiShotMode::Barrage", ClampMin = "1"))
 	float BarrageRPM = 120.0f;
 
 	// Knockback force applied on hit
@@ -93,7 +94,15 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Targeting", meta = (ClampMin = "0"))
 	float InFrontWeight = 1000.0f;
 
-	// ===== Explosion Visuals =====
+	// ===== Impact Visuals (single-target hit, non-AoE) =====
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Visuals|Impact")
+	TObjectPtr<USoundBase> ImpactSound;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Visuals|Impact")
+	TObjectPtr<UNiagaraSystem> ImpactVFX;
+
+	// ===== Explosion Visuals (AoE hit) =====
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Visuals|Explosion")
 	TObjectPtr<USoundBase> ExplosionSound;

@@ -1,4 +1,5 @@
 # Weapons System
+*Last changed: 2026-02-21*
 
 ## Overview
 
@@ -77,17 +78,21 @@ float Area = 0.0f                 // Explosion radius (0 = single target)
 int32 ProjectileCount = 1         // Projectiles per shot
 float Knockback = 0.0f            // Push force on hit
 
-// Multi-Shot (when ProjectileCount > 1)
+// Multi-Shot (always configurable, activates when ProjectileCount > 1)
 EMultiShotMode MultiShotMode      // Volley or Barrage
 float SpreadAngle = 30.0f         // Fan spread in degrees
-float BarrageRPM = 120.0f         // Fire rate within burst
+float BarrageRPM = 120.0f         // Fire rate within burst (only editable in Barrage mode)
 
 // Targeting
 float Precision = 5.0f            // Random aim deviation (degrees)
 float RangeWeight = -1.0f         // Distance preference (negative = closer)
 float InFrontWeight = 1000.0f     // Direction preference
 
-// Explosion Visuals
+// Impact Visuals (single-target, non-AoE — overrides BP defaults if set)
+USoundBase* ImpactSound
+UNiagaraSystem* ImpactVFX
+
+// Explosion Visuals (AoE)
 USoundBase* ExplosionSound
 UNiagaraSystem* ExplosionVFX
 ```
@@ -104,6 +109,8 @@ enum class EMultiShotMode : uint8
 
 - **Volley**: All projectiles spawn at once, spread across SpreadAngle
 - **Barrage**: Projectiles fire one at a time at BarrageRPM, then main cooldown starts
+
+Multi-shot settings can be configured on any weapon regardless of ProjectileCount. This allows weapons to be "upgrade-ready" — when an upgrade adds projectiles, the pre-configured mode/spread/barrage settings activate automatically.
 
 ### ASurvivorWeapon (Actor)
 **File:** `Source/FirstHordeSurvivor/SurvivorWeapon.h/cpp`
@@ -141,6 +148,8 @@ void Initialize(
     int32 PierceCount = 0,        // 0 = destroy on first hit
     float ExplosionRadius = 0.0f, // 0 = no explosion
     float KnockbackForce = 0.0f,
+    USoundBase* InImpactSound = nullptr,    // Overrides BP default HitSound
+    UNiagaraSystem* InImpactVFX = nullptr,  // Overrides BP default HitVFX
     USoundBase* InExplosionSound = nullptr,
     UNiagaraSystem* InExplosionVFX = nullptr
 );
@@ -153,6 +162,9 @@ void Initialize(
 - Explodes on impact if Area > 0 (damages all in radius except direct hit)
 - Applies knockback force on hit
 - Continues through enemies if RemainingPierces > 0
+- On non-AoE hit: plays ImpactSound/ImpactVFX (from DataAsset, or falls back to BP-level HitSound/HitVFX defaults)
+- On AoE hit: plays ExplosionSound/ExplosionVFX instead (no impact effects)
+- Note: Projectile Blueprints can have HitSound/HitVFX set as defaults; DataAsset ImpactSound/ImpactVFX override these when set
 
 ## Targeting System
 
@@ -167,13 +179,13 @@ void Initialize(
 
 ## Fire Pipeline
 
-### Volley Mode (ProjectileCount > 1)
+### Volley Mode
 1. Timer triggers `Fire()` at interval `60.0 / EffectiveRPM`
 2. Find best target, calculate base direction with Precision spread
 3. Fire all projectiles at once, spread across SpreadAngle
 4. Play sound/VFX once
 
-### Barrage Mode (ProjectileCount > 1)
+### Barrage Mode
 1. Timer triggers `Fire()`
 2. Find best target, cache direction
 3. Fire first projectile, play sound/VFX
@@ -217,8 +229,8 @@ Weapon->StartShooting();
 1. Create `UProjectileWeaponData` DataAsset in Content Browser
 2. Set ProjectileClass (use existing or create Blueprint subclass)
 3. Configure stats: RPM, damage, speed, range, penetration, area, knockback
-4. For multi-shot: set ProjectileCount, MultiShotMode, SpreadAngle
-5. Assign explosion sound/VFX if using Area > 0
+4. For multi-shot: set MultiShotMode, SpreadAngle (and BarrageRPM if Barrage) — these can be set even with ProjectileCount = 1
+5. Assign impact sound/VFX for single-target hits, explosion sound/VFX if using Area > 0
 6. Assign to character or weapon pickup system
 
 ## Stat Interactions

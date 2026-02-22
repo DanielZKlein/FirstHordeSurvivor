@@ -29,6 +29,8 @@ public:
 	 * @param PierceCount - Number of enemies to pierce through (0 = stop on first)
 	 * @param ExplosionRadius - AoE radius on impact (0 = single target)
 	 * @param KnockbackForce - Push force on hit
+	 * @param InImpactSound - Sound to play on single-target hit (overrides Blueprint default)
+	 * @param InImpactVFX - VFX to spawn on single-target hit (overrides Blueprint default)
 	 * @param InExplosionSound - Sound to play on explosion
 	 * @param InExplosionVFX - VFX to spawn on explosion
 	 */
@@ -39,6 +41,8 @@ public:
 		int32 PierceCount = 0,
 		float ExplosionRadius = 0.0f,
 		float KnockbackForce = 0.0f,
+		USoundBase* InImpactSound = nullptr,
+		UNiagaraSystem* InImpactVFX = nullptr,
 		USoundBase* InExplosionSound = nullptr,
 		UNiagaraSystem* InExplosionVFX = nullptr
 	);
