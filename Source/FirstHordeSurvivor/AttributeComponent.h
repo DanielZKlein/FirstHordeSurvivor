@@ -66,6 +66,42 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Attributes")
 	FGameplayAttribute MaxAcceleration;
 
+	// Movement control - affects deceleration, direction change responsiveness, air control
+	// Base value 1.0 = normal, higher = more responsive, lower = more sluggish
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Attributes")
+	FGameplayAttribute MovementControl;
+
+	// Armor - flat damage reduction (take X less damage from each attack)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Attributes")
+	FGameplayAttribute Armor;
+
+	// Impact - compound stat affecting: thorns damage, contact knockback, % damage resist
+	// Scales with MaxHealth, Armor, and current speed
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Attributes")
+	FGameplayAttribute Impact;
+
+	// ===== Impact Calculation Helpers =====
+
+	// Calculate thorns damage dealt to enemies on contact
+	// Scales with Impact, MaxHealth, Armor, and current speed
+	UFUNCTION(BlueprintCallable, Category = "Attributes|Impact")
+	float GetThornsDamage(float CurrentSpeed) const;
+
+	// Calculate knockback force applied to enemies on contact
+	// Scales with Impact and current speed
+	UFUNCTION(BlueprintCallable, Category = "Attributes|Impact")
+	float GetContactKnockback(float CurrentSpeed) const;
+
+	// Calculate percentage damage resistance from Impact
+	// Returns value between 0.0 and some maximum (not capped at 1.0 to allow design flexibility)
+	UFUNCTION(BlueprintCallable, Category = "Attributes|Impact")
+	float GetDamageResistPercent() const;
+
+	// Apply damage with Armor reduction
+	// Returns the actual damage dealt after armor
+	UFUNCTION(BlueprintCallable, Category = "Attributes")
+	float ApplyArmoredDamage(float IncomingDamage);
+
 	// Delegate fired when any attribute is modified via the setter functions
 	UPROPERTY(BlueprintAssignable, Category = "Attributes")
 	FOnAttributeChanged OnAttributeChanged;

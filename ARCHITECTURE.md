@@ -16,7 +16,13 @@ Source/FirstHordeSurvivor/
 ├── XPGem.h/cpp                  # Gem actor with state machine
 ├── WeaponData.h                 # Weapon configuration DataAsset
 ├── EnemyData.h                  # Enemy configuration DataAsset
-└── XPGemVisualConfig.h/cpp      # Gem tier visual DataAsset
+├── XPGemVisualConfig.h/cpp      # Gem tier visual DataAsset
+├── UpgradeSubsystem.h/cpp       # Upgrade pool, selection, and application
+├── UpgradeDataAsset.h/cpp       # Individual upgrade definition (DataAsset)
+├── UpgradeEffect.h/cpp          # Single stat modifier within an upgrade
+├── UpgradeTypes.h               # Enums (EUpgradeType, EPlayerStat, EWeaponStat)
+├── UpgradeTableRow.h            # DataTable row for upgrade registry
+└── UpgradePanelWidget.h/cpp     # C++ base for upgrade selection UI widget
 ```
 
 ## Core Classes
@@ -52,6 +58,7 @@ Source/FirstHordeSurvivor/
 | `UWeaponData` | Projectile class, RPM, damage, speed, targeting weights |
 | `UEnemyData` | Mesh, material, health, damage, speed, XP range |
 | `UXPGemVisualConfig` | Map of XP values to visual configs (optional override) |
+| `UUpgradeDataAsset` | Upgrade identity, effects, targeting, selection rules |
 
 ## Subsystems
 
@@ -61,6 +68,13 @@ Source/FirstHordeSurvivor/
   1. DataAsset override (if GameMode provides one)
   2. Hardcoded defaults in `InitializeDefaultVisuals()`
 - Public API: `SpawnGem(Location, Value)`, `ReturnGemToPool(Gem)`
+
+### UUpgradeSubsystem (WorldSubsystem)
+- Manages upgrade pool, selection, and application (see [UPGRADES.md](UPGRADES.md))
+- Registered by GameMode (DataTable) and Character (player ref, weapons)
+- Weighted random selection of 3 upgrades on level-up
+- Applies effects to player attributes and weapon stats
+- Tracks owned upgrades (stacks) and weapon states (levels)
 
 ## Key Patterns
 

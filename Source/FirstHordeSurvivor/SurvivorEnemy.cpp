@@ -281,9 +281,9 @@ void ASurvivorEnemy::AttackPlayer()
 		UAttributeComponent* PlayerAttributes = TargetPlayer->AttributeComp;
 		if (PlayerAttributes)
 		{
-			bool bSuccess = PlayerAttributes->ApplyHealthChange(-EnemyData->BaseDamage);
-			UE_LOG(LogTemp, Warning, TEXT("Attack Applied! Damage: %f | New Health: %f | Success: %d"), 
-				EnemyData->BaseDamage, PlayerAttributes->GetCurrentHealth(), bSuccess);
+			float ActualDamage = PlayerAttributes->ApplyArmoredDamage(EnemyData->BaseDamage);
+			UE_LOG(LogTemp, Warning, TEXT("Attack Applied! Raw: %f | After Armor: %f | New Health: %f"),
+				EnemyData->BaseDamage, ActualDamage, PlayerAttributes->GetCurrentHealth());
 		}
 		else
 		{

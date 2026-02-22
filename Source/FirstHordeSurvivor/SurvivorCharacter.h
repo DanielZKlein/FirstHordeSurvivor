@@ -13,6 +13,7 @@ class UInputAction;
 class UAudioComponent;
 class UCurveFloat;
 class UWeaponDataBase;
+class ASurvivorWeapon;
 
 UCLASS()
 class FIRSTHORDESURVIVOR_API ASurvivorCharacter : public ACharacter
@@ -71,6 +72,35 @@ public:
     
     UPROPERTY(EditAnywhere, Category = "Combat")
     TObjectPtr<UWeaponDataBase> StartingWeaponData;
+
+	// ===== Multi-Weapon Support =====
+
+	// Maximum number of weapons the player can have
+	static constexpr int32 MaxWeaponSlots = 4;
+
+	// All weapons currently owned by the player
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Combat")
+	TArray<ASurvivorWeapon*> OwnedWeapons;
+
+	// Add a new weapon to the player (returns nullptr if at max capacity)
+	UFUNCTION(BlueprintCallable, Category = "Combat")
+	ASurvivorWeapon* AddWeapon(UWeaponDataBase* WeaponData);
+
+	// Remove a weapon from the player
+	UFUNCTION(BlueprintCallable, Category = "Combat")
+	void RemoveWeapon(ASurvivorWeapon* Weapon);
+
+	// Check if player can add another weapon
+	UFUNCTION(BlueprintPure, Category = "Combat")
+	bool CanAddWeapon() const { return OwnedWeapons.Num() < MaxWeaponSlots; }
+
+	// Get current weapon count
+	UFUNCTION(BlueprintPure, Category = "Combat")
+	int32 GetWeaponSlotCount() const { return OwnedWeapons.Num(); }
+
+	// Get max weapon slots
+	UFUNCTION(BlueprintPure, Category = "Combat")
+	int32 GetMaxWeaponSlots() const { return MaxWeaponSlots; }
 
 	// Helper to apply attributes to CharacterMovement
 	UFUNCTION(BlueprintCallable, Category = "Attributes")

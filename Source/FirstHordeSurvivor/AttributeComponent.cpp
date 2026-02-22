@@ -6,9 +6,14 @@ UAttributeComponent::UAttributeComponent()
 
 	// Default values
 	MaxHealth = FGameplayAttribute(100.f);
-	HealthRegen = FGameplayAttribute(1.f);
+	HealthRegen = FGameplayAttribute(0.f);
 	MaxSpeed = FGameplayAttribute(600.f);
 	MaxAcceleration = FGameplayAttribute(2000.f);
+
+	// New stats
+	MovementControl = FGameplayAttribute(1.0f);  // 1.0 = normal responsiveness
+	Armor = FGameplayAttribute(0.0f);            // No flat damage reduction by default
+	Impact = FGameplayAttribute(0.0f);           // No impact bonuses by default
 }
 
 void UAttributeComponent::BeginPlay()
@@ -120,4 +125,87 @@ void UAttributeComponent::ApplyMultiplicative(FGameplayAttribute& Attribute, flo
 {
 	Attribute.Multiplicative += Multiplier;
 	OnAttributeChanged.Broadcast(this, false);
+}
+
+float UAttributeComponent::GetThornsDamage(float CurrentSpeed) const
+{
+	// Thorns damage scales with:
+	// - Impact stat (primary scaling)
+	// - MaxHealth (tanky characters deal more thorns)
+	// - Armor (armored characters deal more thorns)
+	// - Current speed (faster = more damage)
+
+	float ImpactValue = Impact.GetCurrentValue();
+	if (ImpactValue <= 0.0f)
+	{
+		return 0.0f;
+	}
+
+	float MaxHP = MaxHealth.GetCurrentValue();
+	float ArmorValue = Armor.GetCurrentValue();
+
+	// Base thorns = Impact * (1 + HP/100 + Armor/10)
+	// Speed multiplier adds up to 50% bonus at max speed
+	float SpeedMultiplier = FMath::Max(600.0f, MaxSpeed.GetCurrentValue());
+	float SpeedBonus = 1.0f + 0.5f * FMath::Clamp(CurrentSpeed / SpeedMultiplier, 0.0f, 1.0f);
+
+	float BaseThorns = ImpactValue * (1.0f + MaxHP / 100.0f + ArmorValue / 10.0f);
+
+	return BaseThorns * SpeedBonus;
+}
+
+float UAttributeComponent::GetContactKnockback(float CurrentSpeed) const
+{
+	// Knockback scales with:
+	// - Impact stat (primary scaling)
+	// - Current speed (faster = more knockback)
+
+	float ImpactValue = Impact.GetCurrentValue();
+	if (ImpactValue <= 0.0f)
+	{
+		return 0.0f;
+	}
+
+	// Base knockback force, scales linearly with speed
+	float SpeedMultiplier = FMath::Max(600.0f, MaxSpeed.GetCurrentValue());
+	float SpeedFactor = FMath::Clamp(CurrentSpeed / SpeedMultiplier, 0.0f, 1.5f);
+
+	return ImpactValue * 100.0f * (1.0f + SpeedFactor);
+}
+
+float UAttributeComponent::GetDamageResistPercent() const
+{
+	// Damage resist from Impact
+	// Each point of Impact gives 1% damage resist
+	// Not capped - design can decide the maximum Impact achievable
+
+	float ImpactValue = Impact.GetCurrentValue();
+	return ImpactValue * 0.01f;  // 1% per point
+}
+
+float UAttributeComponent::ApplyArmoredDamage(float IncomingDamage)
+{
+	if (IncomingDamage <= 0.0f)
+	{
+		return 0.0f;
+	}
+
+	// Apply flat armor reduction
+	float ArmorValue = Armor.GetCurrentValue();
+	float ReducedDamage = FMath::Max(0.0f, IncomingDamage - ArmorValue);
+
+	// Apply Impact percentage damage resist
+	float DamageResist = GetDamageResistPercent();
+	float FinalDamage = ReducedDamage * (1.0f - FMath::Clamp(DamageResist, 0.0f, 0.9f));  // Cap at 90% resist
+
+	// Minimum 1 damage if any damage was incoming (prevent complete immunity)
+	if (IncomingDamage > 0.0f && FinalDamage < 1.0f)
+	{
+		FinalDamage = 1.0f;
+	}
+
+	// Apply the damage
+	ApplyHealthChange(-FinalDamage);
+
+	return FinalDamage;
 }

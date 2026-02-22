@@ -1,6 +1,7 @@
 #include "SurvivorGameMode.h"
 #include "XPGemSubsystem.h"
 #include "XPGemVisualConfig.h"
+#include "UpgradeSubsystem.h"
 
 ASurvivorGameMode::ASurvivorGameMode()
 {
@@ -21,6 +22,15 @@ void ASurvivorGameMode::BeginPlay()
 		if (XPGemClass)
 		{
 			GemSubsystem->RegisterGemClass(XPGemClass);
+		}
+	}
+
+	// Register Upgrade DataTable with subsystem
+	if (UUpgradeSubsystem* UpgradeSubsystem = GetWorld()->GetSubsystem<UUpgradeSubsystem>())
+	{
+		if (UpgradeDataTable)
+		{
+			UpgradeSubsystem->RegisterUpgradeTable(UpgradeDataTable);
 		}
 	}
 }

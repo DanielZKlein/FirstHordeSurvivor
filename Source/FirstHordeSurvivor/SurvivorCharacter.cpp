@@ -8,10 +8,10 @@
 #include "EnhancedInputSubsystems.h"
 #include "Kismet/KismetMathLibrary.h"
 #include "Kismet/GameplayStatics.h"
-#include "Kismet/GameplayStatics.h"
 #include "SurvivorEnemy.h"
 #include "SurvivorWeapon.h"
 #include "WeaponDataBase.h"
+#include "UpgradeSubsystem.h"
 
 #include "Components/StaticMeshComponent.h"
 
@@ -89,27 +89,21 @@ void ASurvivorCharacter::BeginPlay()
 	// Bind OnHit for Wall Bounce
 	GetCapsuleComponent()->OnComponentHit.AddDynamic(this, &ASurvivorCharacter::OnHit);
 
-    // Spawn Weapon
-    if (StartingWeaponData)
-    {
-        FActorSpawnParameters SpawnParams;
-        SpawnParams.Owner = this;
-        SpawnParams.Instigator = this;
-        
-        // We spawn the base weapon class. If we wanted custom logic per weapon, we'd need a class in Data.
-        // For now, ASurvivorWeapon is generic enough.
-        ASurvivorWeapon* NewWeapon = GetWorld()->SpawnActor<ASurvivorWeapon>(ASurvivorWeapon::StaticClass(), GetActorTransform(), SpawnParams);
-        if (NewWeapon)
-        {
-            NewWeapon->WeaponData = StartingWeaponData;
-            NewWeapon->AttachToComponent(GetMesh(), FAttachmentTransformRules::SnapToTargetNotIncludingScale);
-            NewWeapon->StartShooting();
-        }
-    }
-    else
-    {
-        UE_LOG(LogTemp, Warning, TEXT("ASurvivorCharacter: StartingWeaponData is NULL! No weapon spawned. Please assign a WeaponData asset in the Character Blueprint."));
-    }
+	// Register with upgrade subsystem
+	if (UUpgradeSubsystem* UpgradeSubsystem = GetWorld()->GetSubsystem<UUpgradeSubsystem>())
+	{
+		UpgradeSubsystem->RegisterPlayer(this);
+	}
+
+	// Spawn starting weapon using new multi-weapon system
+	if (StartingWeaponData)
+	{
+		AddWeapon(StartingWeaponData);
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("ASurvivorCharacter: StartingWeaponData is NULL! No weapon spawned. Please assign a WeaponData asset in the Character Blueprint."));
+	}
 }
 
 void ASurvivorCharacter::Tick(float DeltaTime)
@@ -310,6 +304,13 @@ void ASurvivorCharacter::AddXP(int32 Amount)
     {
         CurrentXP -= XPNeeded;
         CurrentLevel++;
+
+        // Trigger upgrade selection via subsystem
+        if (UUpgradeSubsystem* UpgradeSubsystem = GetWorld()->GetSubsystem<UUpgradeSubsystem>())
+        {
+            UpgradeSubsystem->TriggerUpgradeSelection();
+        }
+
         OnLevelUp(CurrentLevel);
         XPNeeded = GetXPForCurrentLevel();
     }
@@ -357,4 +358,67 @@ void ASurvivorCharacter::DebugKillNearby()
             }
         }
     }
+}
+
+ASurvivorWeapon* ASurvivorCharacter::AddWeapon(UWeaponDataBase* WeaponData)
+{
+    if (!WeaponData)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("ASurvivorCharacter::AddWeapon: WeaponData is null"));
+        return nullptr;
+    }
+
+    if (!CanAddWeapon())
+    {
+        UE_LOG(LogTemp, Warning, TEXT("ASurvivorCharacter::AddWeapon: At max weapon capacity (%d/%d)"),
+            OwnedWeapons.Num(), MaxWeaponSlots);
+        return nullptr;
+    }
+
+    FActorSpawnParameters SpawnParams;
+    SpawnParams.Owner = this;
+    SpawnParams.Instigator = this;
+
+    // Get the weapon actor class from the data asset (or use default)
+    TSubclassOf<ASurvivorWeapon> WeaponActorClass = WeaponData->GetWeaponActorClass();
+    if (!WeaponActorClass)
+    {
+        WeaponActorClass = ASurvivorWeapon::StaticClass();
+    }
+
+    ASurvivorWeapon* NewWeapon = GetWorld()->SpawnActor<ASurvivorWeapon>(WeaponActorClass, GetActorTransform(), SpawnParams);
+    if (NewWeapon)
+    {
+        NewWeapon->WeaponData = WeaponData;
+        NewWeapon->AttachToComponent(GetMesh(), FAttachmentTransformRules::SnapToTargetNotIncludingScale);
+        NewWeapon->StartShooting();
+
+        OwnedWeapons.Add(NewWeapon);
+
+        // Register with upgrade subsystem for tracking
+        if (UUpgradeSubsystem* UpgradeSubsystem = GetWorld()->GetSubsystem<UUpgradeSubsystem>())
+        {
+            UpgradeSubsystem->RegisterWeapon(WeaponData, NewWeapon);
+        }
+
+        UE_LOG(LogTemp, Log, TEXT("ASurvivorCharacter: Added weapon '%s' (%d/%d slots)"),
+            *WeaponData->WeaponID.ToString(), OwnedWeapons.Num(), MaxWeaponSlots);
+    }
+
+    return NewWeapon;
+}
+
+void ASurvivorCharacter::RemoveWeapon(ASurvivorWeapon* Weapon)
+{
+    if (!Weapon)
+    {
+        return;
+    }
+
+    Weapon->StopShooting();
+    OwnedWeapons.Remove(Weapon);
+    Weapon->Destroy();
+
+    UE_LOG(LogTemp, Log, TEXT("ASurvivorCharacter: Removed weapon (%d/%d slots remaining)"),
+        OwnedWeapons.Num(), MaxWeaponSlots);
 }

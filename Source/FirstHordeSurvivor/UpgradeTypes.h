@@ -30,6 +30,23 @@ enum class EWeaponStat : uint8
 };
 
 /**
+ * Player attributes that can be modified by upgrades.
+ */
+UENUM(BlueprintType)
+enum class EPlayerStat : uint8
+{
+	MaxHealth			UMETA(DisplayName = "Max Health"),
+	HealthRegen			UMETA(DisplayName = "Health Regen"),
+	MaxSpeed			UMETA(DisplayName = "Max Speed"),
+	MaxAcceleration		UMETA(DisplayName = "Max Acceleration"),
+	MovementControl		UMETA(DisplayName = "Movement Control"),
+	Armor				UMETA(DisplayName = "Armor"),
+	Impact				UMETA(DisplayName = "Impact"),
+
+	COUNT UMETA(Hidden)
+};
+
+/**
  * Types of upgrades the player can acquire.
  */
 UENUM(BlueprintType)

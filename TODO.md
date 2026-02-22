@@ -7,7 +7,7 @@
 
 ## Bug Fixes
 - [x] ~~Investigate why XP gems are so large - resize or use different mesh~~ (Fixed: Scale controlled via DataAsset/code defaults)
-- [ ] Investigate why XP isn't being added to the player
+- [x] ~~Investigate why XP isn't being added to the player~~ (Fixed: XP collection and leveling working correctly)
 
 ## Features
 - [ ] Add hit effects on enemies when they get hit
@@ -19,4 +19,4 @@
 - [x] Git repo setup with .gitignore for large marketplace assets
 
 ---
-*Last updated: 2025-12-19*
+*Last updated: 2026-02-20*
