@@ -13,18 +13,16 @@ class UWeaponDataBase;
 UENUM(BlueprintType)
 enum class EWeaponStat : uint8
 {
-	// Universal (all weapons have these)
-	Damage,				// Damage per hit/pulse/jump
-	AttackSpeed,		// Fire/pulse/cast rate multiplier
+	Damage				UMETA(ToolTip = "Damage per hit/pulse/jump"),
+	AttackSpeed			UMETA(ToolTip = "Fire/pulse/cast rate multiplier"),
 
-	// Conditional (weapons opt-in)
-	Area,				// AoE radius, search radius, pulse radius
-	Penetration,		// Pierce count, jump count, bounces
-	ProjectileSpeed,	// Projectile travel speed
-	ProjectileCount,	// Multi-shot count
-	Duration,			// Aura duration, DoT length, chain active time
-	Range,				// Max travel distance, max chain range
-	Knockback,			// Push force on hit
+	Area				UMETA(ToolTip = "AoE radius, search radius, pulse radius"),
+	Penetration			UMETA(ToolTip = "Pierce count, jump count, bounces"),
+	ProjectileSpeed		UMETA(ToolTip = "Projectile travel speed"),
+	ProjectileCount		UMETA(ToolTip = "Multi-shot count"),
+	Duration			UMETA(ToolTip = "Aura duration, DoT length, chain active time"),
+	Range				UMETA(ToolTip = "Max travel distance, max chain range"),
+	Knockback			UMETA(ToolTip = "Push force on hit"),
 
 	COUNT UMETA(Hidden)
 };
@@ -42,6 +40,7 @@ enum class EPlayerStat : uint8
 	MovementControl		UMETA(DisplayName = "Movement Control"),
 	Armor				UMETA(DisplayName = "Armor"),
 	Impact				UMETA(DisplayName = "Impact"),
+	PickupRadius		UMETA(DisplayName = "Pickup Radius"),
 
 	COUNT UMETA(Hidden)
 };

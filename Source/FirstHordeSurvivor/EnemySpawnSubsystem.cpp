@@ -12,8 +12,6 @@ void UEnemySpawnSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
 	Super::Initialize(Collection);
 
-	UE_LOG(LogTemp, Log, TEXT("EnemySpawnSubsystem Initialized"));
-
 	// Auto-start spawning after short delay to ensure world is ready
 	if (UWorld* World = GetWorld())
 	{
@@ -56,9 +54,6 @@ void UEnemySpawnSubsystem::Configure(TSubclassOf<ASurvivorEnemy> InEnemyClass, U
 	EnemyDataTable = InEnemyDataTable;
 	SpawnConfigTable = InSpawnConfigTable;
 	bIsConfigured = true;
-
-	UE_LOG(LogTemp, Log, TEXT("EnemySpawnSubsystem configured with EnemyClass: %s"),
-		EnemyClass ? *EnemyClass->GetName() : TEXT("None"));
 }
 
 void UEnemySpawnSubsystem::LoadDefaultAssets()
@@ -111,12 +106,6 @@ void UEnemySpawnSubsystem::StartSpawning()
 
 	// Start spawn timer
 	SpawnEnemy();
-
-	UE_LOG(LogTemp, Log, TEXT("EnemySpawnSubsystem: Spawning started with %d pre-warmed enemies. EnemyClass=%s, DataTable=%s, SpawnConfig=%s"),
-		PreWarmCount,
-		EnemyClass ? *EnemyClass->GetName() : TEXT("NULL"),
-		EnemyDataTable ? *EnemyDataTable->GetName() : TEXT("NULL"),
-		SpawnConfigTable ? *SpawnConfigTable->GetName() : TEXT("NULL"));
 }
 
 void UEnemySpawnSubsystem::StopSpawning()
@@ -233,9 +222,6 @@ void UEnemySpawnSubsystem::SpawnEnemy()
 			{
 				FVector Location = GetSpawnLocation();
 				Enemy->Reinitialize(EnemyDataTable, EnemyType, Location);
-
-				UE_LOG(LogTemp, Log, TEXT("SpawnEnemy: Spawned %s at %s (Active: %d, Pool: %d)"),
-					*EnemyType.ToString(), *Location.ToString(), ActiveEnemies.Num(), EnemyPool.Num());
 			}
 			else
 			{
@@ -247,9 +233,6 @@ void UEnemySpawnSubsystem::SpawnEnemy()
 	// Schedule next spawn
 	float SpawnRate = GetCurrentSpawnRate();
 	float Interval = 60.0f / SpawnRate;  // Convert spawns/min to seconds
-
-	UE_LOG(LogTemp, Log, TEXT("SpawnEnemy: Next spawn in %.2fs (rate: %.1f/min, active: %d)"),
-		Interval, SpawnRate, ActiveEnemies.Num());
 
 	World->GetTimerManager().SetTimer(
 		SpawnTimerHandle,
@@ -302,7 +285,6 @@ FName UEnemySpawnSubsystem::SelectEnemyType()
 		if (EnemyDataTable)
 		{
 			TArray<FName> RowNames = EnemyDataTable->GetRowNames();
-			UE_LOG(LogTemp, Log, TEXT("SelectEnemyType: No SpawnConfigTable, using EnemyDataTable with %d rows"), RowNames.Num());
 			if (RowNames.Num() > 0)
 			{
 				return RowNames[0];
@@ -405,17 +387,12 @@ void UEnemySpawnSubsystem::CacheFloorBounds()
 			FString ActorName = Brush->GetName();
 			FString ActorLabel = Brush->GetActorLabel();
 
-			UE_LOG(LogTemp, Log, TEXT("CacheFloorBounds: Found brush Name='%s' Label='%s'"), *ActorName, *ActorLabel);
-
 			if (ActorName.Contains(TEXT("LevelFloor")) || ActorLabel.Contains(TEXT("LevelFloor")))
 			{
 				FVector Origin, Extent;
 				Brush->GetActorBounds(false, Origin, Extent);
 				FloorBounds = FBox(Origin - Extent, Origin + Extent);
 				bHasFloorBounds = true;
-
-				UE_LOG(LogTemp, Log, TEXT("EnemySpawnSubsystem: Found LevelFloor bounds - Min(%s) Max(%s)"),
-					*FloorBounds.Min.ToString(), *FloorBounds.Max.ToString());
 				return;
 			}
 		}

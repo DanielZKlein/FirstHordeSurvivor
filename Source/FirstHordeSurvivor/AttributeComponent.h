@@ -80,6 +80,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Attributes")
 	FGameplayAttribute Impact;
 
+	// Pickup Radius - how far away XP gems start magnetizing toward the player
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Attributes")
+	FGameplayAttribute PickupRadius;
+
 	// ===== Impact Calculation Helpers =====
 
 	// Calculate thorns damage dealt to enemies on contact

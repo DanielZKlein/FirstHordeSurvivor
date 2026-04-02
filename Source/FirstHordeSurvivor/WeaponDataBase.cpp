@@ -28,7 +28,7 @@ float UWeaponDataBase::GetBaseStatValue(EWeaponStat Stat) const
 	case EWeaponStat::Damage:
 		return BaseDamage;
 	case EWeaponStat::AttackSpeed:
-		return 1.0f; // AttackSpeed always starts at 1.0 (100%)
+		return GetBaseRPM();
 	default:
 		return 0.0f;
 	}

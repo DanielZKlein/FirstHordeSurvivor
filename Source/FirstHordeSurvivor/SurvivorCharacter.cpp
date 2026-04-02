@@ -339,6 +339,15 @@ float ASurvivorCharacter::GetLevelProgress() const
     return static_cast<float>(CurrentXP) / static_cast<float>(XPNeeded);
 }
 
+float ASurvivorCharacter::GetPickupRange() const
+{
+    if (AttributeComp)
+    {
+        return AttributeComp->PickupRadius.GetCurrentValue();
+    }
+    return 500.0f;
+}
+
 void ASurvivorCharacter::DebugKillNearby()
 {
     // Sphere trace or just iterate all actors
@@ -401,8 +410,6 @@ ASurvivorWeapon* ASurvivorCharacter::AddWeapon(UWeaponDataBase* WeaponData)
             UpgradeSubsystem->RegisterWeapon(WeaponData, NewWeapon);
         }
 
-        UE_LOG(LogTemp, Log, TEXT("ASurvivorCharacter: Added weapon '%s' (%d/%d slots)"),
-            *WeaponData->WeaponID.ToString(), OwnedWeapons.Num(), MaxWeaponSlots);
     }
 
     return NewWeapon;
@@ -418,7 +425,4 @@ void ASurvivorCharacter::RemoveWeapon(ASurvivorWeapon* Weapon)
     Weapon->StopShooting();
     OwnedWeapons.Remove(Weapon);
     Weapon->Destroy();
-
-    UE_LOG(LogTemp, Log, TEXT("ASurvivorCharacter: Removed weapon (%d/%d slots remaining)"),
-        OwnedWeapons.Num(), MaxWeaponSlots);
 }

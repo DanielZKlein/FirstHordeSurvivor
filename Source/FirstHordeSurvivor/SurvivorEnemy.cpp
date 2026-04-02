@@ -241,7 +241,6 @@ void ASurvivorEnemy::OnOverlapBegin(UPrimitiveComponent* OverlappedComponent, AA
 {
 	if (OtherActor == TargetPlayer)
 	{
-		UE_LOG(LogTemp, Log, TEXT("OVERLAP BEGIN: %s overlapped with Player!"), *GetName());
 		bIsOverlappingPlayer = true;
 		StartAttackTimer();
 	}
@@ -251,7 +250,6 @@ void ASurvivorEnemy::OnOverlapEnd(UPrimitiveComponent* OverlappedComponent, AAct
 {
 	if (OtherActor == TargetPlayer)
 	{
-		UE_LOG(LogTemp, Log, TEXT("OVERLAP END: %s stopped overlapping Player."), *GetName());
 		bIsOverlappingPlayer = false;
 		StopAttackTimer();
 	}
@@ -259,7 +257,6 @@ void ASurvivorEnemy::OnOverlapEnd(UPrimitiveComponent* OverlappedComponent, AAct
 
 void ASurvivorEnemy::StartAttackTimer()
 {
-	UE_LOG(LogTemp, Log, TEXT("STARTING ATTACK TIMER on %s"), *GetName());
 	// Attack immediately then loop
 	AttackPlayer();
 	GetWorldTimerManager().SetTimer(TimerHandle_Attack, this, &ASurvivorEnemy::AttackPlayer, 1.0f, true);
@@ -272,8 +269,6 @@ void ASurvivorEnemy::StopAttackTimer()
 
 void ASurvivorEnemy::AttackPlayer()
 {
-	UE_LOG(LogTemp, Log, TEXT("ATTEMPTING ATTACK by %s"), *GetName());
-	
 	if (TargetPlayer && AttributeComp && EnemyData)
 	{
 		// Apply Damage
@@ -281,9 +276,7 @@ void ASurvivorEnemy::AttackPlayer()
 		UAttributeComponent* PlayerAttributes = TargetPlayer->AttributeComp;
 		if (PlayerAttributes)
 		{
-			float ActualDamage = PlayerAttributes->ApplyArmoredDamage(EnemyData->BaseDamage);
-			UE_LOG(LogTemp, Warning, TEXT("Attack Applied! Raw: %f | After Armor: %f | New Health: %f"),
-				EnemyData->BaseDamage, ActualDamage, PlayerAttributes->GetCurrentHealth());
+			PlayerAttributes->ApplyArmoredDamage(EnemyData->BaseDamage);
 		}
 		else
 		{

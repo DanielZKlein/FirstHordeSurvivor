@@ -16,7 +16,7 @@ ASurvivorProjectile::ASurvivorProjectile()
 
 	SphereComp = CreateDefaultSubobject<USphereComponent>(TEXT("SphereComp"));
 	SphereComp->SetCollisionProfileName("OverlapAllDynamic");
-	SphereComp->SetGenerateOverlapEvents(true);
+	SphereComp->SetGenerateOverlapEvents(false); // Re-enabled in BeginPlay to prevent overlap during construction
 	RootComponent = SphereComp;
 
 	MeshComp = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("MeshComp"));
@@ -43,6 +43,16 @@ void ASurvivorProjectile::BeginPlay()
 {
 	Super::BeginPlay();
 	StartLocation = GetActorLocation();
+	// Defer enabling overlaps to next tick so SpawnActor has returned before any overlap fires.
+	// Enabling overlaps immediately in BeginPlay (which runs inside SpawnActor) can trigger
+	// OnOverlapBegin → Destroy() before SpawnActor returns, causing it to return null.
+	GetWorld()->GetTimerManager().SetTimerForNextTick([this]()
+	{
+		if (IsValid(this) && SphereComp)
+		{
+			SphereComp->SetGenerateOverlapEvents(true);
+		}
+	});
 }
 
 void ASurvivorProjectile::Initialize(
@@ -138,10 +148,11 @@ void ASurvivorProjectile::OnOverlapBegin(UPrimitiveComponent* OverlappedComponen
 		if (RemainingPierces > 0)
 		{
 			RemainingPierces--;
-			// Continue flying
 		}
 		else
 		{
+			UE_LOG(LogTemp, Warning, TEXT("ASurvivorProjectile::OnOverlapBegin [%s] — Destroy() triggered: no pierces remaining after hitting %s"),
+				*GetName(), *OtherActor->GetName());
 			// No more pierces, destroy
 			Destroy();
 		}
@@ -153,6 +164,8 @@ void ASurvivorProjectile::OnOverlapBegin(UPrimitiveComponent* OverlappedComponen
 		{
 			Explode();
 		}
+		UE_LOG(LogTemp, Warning, TEXT("ASurvivorProjectile::OnOverlapBegin [%s] — Destroy() triggered: hit WorldStatic actor %s"),
+			*GetName(), *OtherActor->GetName());
 		Destroy();
 	}
 }

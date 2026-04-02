@@ -127,8 +127,9 @@ public:
     UFUNCTION(BlueprintPure, Category = "XP")
     float GetLevelProgress() const;
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "XP")
-    float PickupRange = 500.0f;
+    // PickupRange now driven by AttributeComponent::PickupRadius
+    UFUNCTION(BlueprintPure, Category = "XP")
+    float GetPickupRange() const;
 
     // XP Curve Parameters - tune these to adjust leveling speed
     // Formula: XP = Base * Level^Exponent + Linear * Level

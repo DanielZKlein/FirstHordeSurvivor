@@ -54,8 +54,6 @@ void UUpgradeSubsystem::CacheUpgradesFromTable()
 			AllUpgrades.Add(Row->UpgradeAsset);
 		}
 	}
-
-	UE_LOG(LogTemp, Log, TEXT("UpgradeSubsystem: Cached %d upgrades from table"), AllUpgrades.Num());
 }
 
 TArray<UUpgradeDataAsset*> UUpgradeSubsystem::GetRandomUpgradeChoices(int32 Count)
@@ -249,9 +247,6 @@ void UUpgradeSubsystem::ApplyUpgrade(UUpgradeDataAsset* Upgrade)
 
 	// Broadcast upgrade applied
 	OnUpgradeApplied.Broadcast(Upgrade);
-
-	UE_LOG(LogTemp, Log, TEXT("UpgradeSubsystem: Applied upgrade '%s' (stack %d)"),
-		*Upgrade->UpgradeID.ToString(), Stacks);
 }
 
 void UUpgradeSubsystem::ApplyPlayerStatEffect(const FUpgradeEffect& Effect)
@@ -289,6 +284,9 @@ void UUpgradeSubsystem::ApplyPlayerStatEffect(const FUpgradeEffect& Effect)
 		break;
 	case EPlayerStat::Impact:
 		TargetAttr = &Attr->Impact;
+		break;
+	case EPlayerStat::PickupRadius:
+		TargetAttr = &Attr->PickupRadius;
 		break;
 	default:
 		break;
@@ -355,8 +353,6 @@ void UUpgradeSubsystem::IncrementWeaponLevel(UWeaponDataBase* WeaponData)
 	if (State)
 	{
 		State->Level++;
-		UE_LOG(LogTemp, Log, TEXT("UpgradeSubsystem: Weapon '%s' leveled up to %d"),
-			*WeaponData->WeaponID.ToString(), State->Level);
 	}
 }
 
@@ -448,8 +444,6 @@ void UUpgradeSubsystem::RegisterWeapon(UWeaponDataBase* WeaponData, ASurvivorWea
 	State.WeaponData = WeaponData;
 	State.WeaponActor = WeaponActor;
 	State.Level = 1;
-
-	UE_LOG(LogTemp, Log, TEXT("UpgradeSubsystem: Registered weapon '%s'"), *WeaponData->WeaponID.ToString());
 }
 
 ASurvivorWeapon* UUpgradeSubsystem::GetWeaponActor(const UWeaponDataBase* WeaponData) const
@@ -471,7 +465,6 @@ void UUpgradeSubsystem::TriggerUpgradeSelection()
 
 	if (Choices.Num() > 0)
 	{
-		UE_LOG(LogTemp, Log, TEXT("UpgradeSubsystem: Triggering upgrade selection with %d choices"), Choices.Num());
 		OnShowUpgradeSelection.Broadcast(Choices);
 	}
 	else

@@ -110,9 +110,7 @@ float ASurvivorWeapon::GetEffectiveRPM() const
 		return 0.0f;
 	}
 
-	float BaseRPM = WeaponData->GetBaseRPM();
-	float AttackSpeedMod = GetStat(EWeaponStat::AttackSpeed);
-	return BaseRPM * AttackSpeedMod;
+	return GetStat(EWeaponStat::AttackSpeed);
 }
 
 void ASurvivorWeapon::Fire()
@@ -233,6 +231,14 @@ void ASurvivorWeapon::FireSingleProjectile(int32 ProjectileIndex, int32 TotalPro
 	SpawnParams.Instigator = Cast<APawn>(GetOwner());
 
 	ASurvivorProjectile* Proj = GetWorld()->SpawnActor<ASurvivorProjectile>(ProjData->ProjectileClass, SpawnTM, SpawnParams);
+	if (!Proj)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("ASurvivorWeapon::SpawnProjectile — SpawnActor returned null! "
+			"WeaponID='%s'  ProjectileClass='%s'  SpawnLocation=(%.1f, %.1f, %.1f)"),
+			*ProjData->WeaponID.ToString(),
+			*ProjData->ProjectileClass->GetName(),
+			SpawnTM.GetLocation().X, SpawnTM.GetLocation().Y, SpawnTM.GetLocation().Z);
+	}
 	if (Proj)
 	{
 		Proj->Initialize(

@@ -14,6 +14,7 @@ UAttributeComponent::UAttributeComponent()
 	MovementControl = FGameplayAttribute(1.0f);  // 1.0 = normal responsiveness
 	Armor = FGameplayAttribute(0.0f);            // No flat damage reduction by default
 	Impact = FGameplayAttribute(0.0f);           // No impact bonuses by default
+	PickupRadius = FGameplayAttribute(500.0f);   // Default pickup range for XP gems
 }
 
 void UAttributeComponent::BeginPlay()

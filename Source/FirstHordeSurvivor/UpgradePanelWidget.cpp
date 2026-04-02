@@ -36,9 +36,6 @@ void UUpgradePanelWidget::OnOptionSelected(int32 OptionIndex)
 	{
 		UUpgradeDataAsset* Selected = CurrentChoices[OptionIndex];
 
-		UE_LOG(LogTemp, Log, TEXT("UpgradePanelWidget: Option %d selected ('%s')"),
-			OptionIndex, Selected ? *Selected->UpgradeID.ToString() : TEXT("null"));
-
 		OnUpgradeSelected.Broadcast(Selected);
 		ClosePanel();
 	}

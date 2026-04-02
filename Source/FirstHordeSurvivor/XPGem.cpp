@@ -159,7 +159,7 @@ void AXPGem::Tick(float DeltaTime)
 			float PickupRange = 500.0f;
 			if (ASurvivorCharacter* Player = Cast<ASurvivorCharacter>(TargetActor))
 			{
-				PickupRange = Player->PickupRange;
+				PickupRange = Player->GetPickupRange();
 			}
 
 			if (DistSq < PickupRange * PickupRange)
