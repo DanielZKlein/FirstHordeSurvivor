@@ -151,8 +151,6 @@ void ASurvivorProjectile::OnOverlapBegin(UPrimitiveComponent* OverlappedComponen
 		}
 		else
 		{
-			UE_LOG(LogTemp, Warning, TEXT("ASurvivorProjectile::OnOverlapBegin [%s] — Destroy() triggered: no pierces remaining after hitting %s"),
-				*GetName(), *OtherActor->GetName());
 			// No more pierces, destroy
 			Destroy();
 		}
@@ -164,8 +162,6 @@ void ASurvivorProjectile::OnOverlapBegin(UPrimitiveComponent* OverlappedComponen
 		{
 			Explode();
 		}
-		UE_LOG(LogTemp, Warning, TEXT("ASurvivorProjectile::OnOverlapBegin [%s] — Destroy() triggered: hit WorldStatic actor %s"),
-			*GetName(), *OtherActor->GetName());
 		Destroy();
 	}
 }

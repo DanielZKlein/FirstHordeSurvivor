@@ -37,7 +37,17 @@
       "Bash(powershell -Command \"\\(Invoke-RestMethod -Uri ''http://localhost:3000/mcp/tool/blueprint_modify'' -Method Post -ContentType ''application/json'' -Body ''{\"\"blueprint_path\"\":\"\"/Game/Player/B_PlayerCharacter\"\",\"\"operation\"\":\"\"add_node\"\",\"\"graph_name\"\":\"\"EventGraph\"\",\"\"node_type\"\":\"\"PrintString\"\",\"\"params\"\":{\"\"string\"\":\"\"Hello from Claude Code terminal!\"\"},\"\"connect_to_event\"\":\"\"BeginPlay\"\",\"\"append_to_end\"\":true}''\\) | ConvertTo-Json -Depth 10\")",
       "Bash(powershell -Command \"$body = Get-Content ''C:\\\\Users\\\\COBRAT~1\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\D--GameDev-FirstHordeSurvivor-FirstHordeSurvivor\\\\e1844a26-dc8a-4d5f-bb91-954aa4a42c1a\\\\scratchpad\\\\mcp_request.json'' -Raw; \\(Invoke-RestMethod -Uri ''http://localhost:3000/mcp/tool/blueprint_modify'' -Method Post -ContentType ''application/json'' -Body $body\\) | ConvertTo-Json -Depth 10\")",
       "Bash(powershell -ExecutionPolicy Bypass -File:*)",
-      "Bash(cd /d/GameDev/FirstHordeSurvivor/FirstHordeSurvivor && git check-ignore nul Content/Fab/ Plugins/ 2>&1)"
+      "Bash(cd /d/GameDev/FirstHordeSurvivor/FirstHordeSurvivor && git check-ignore nul Content/Fab/ Plugins/ 2>&1)",
+      "Bash(export:*)",
+      "Bash(powershell:*)",
+      "mcp__unrealMCP__read_blueprint_content",
+      "mcp__unrealMCP__delete_node",
+      "mcp__unrealMCP__analyze_blueprint_graph",
+      "mcp__unrealMCP__connect_nodes"
     ]
-  }
+  },
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [
+    "unrealMCP"
+  ]
 }

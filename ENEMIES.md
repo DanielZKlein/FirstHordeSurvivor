@@ -1,8 +1,10 @@
 # Enemy System
 
+*Last changed: 2026-04-07*
+
 ## Overview
 
-Simple chase-and-attack enemies optimized for large hordes with RVO avoidance. Enemy stats are defined in a DataTable for easy bulk editing and balancing.
+Simple chase-and-attack enemies optimized for large hordes with lightweight per-tick separation (RVO disabled). Enemy stats are defined in a DataTable for easy bulk editing and balancing.
 
 ## Data Structure
 
@@ -44,8 +46,8 @@ int32 MaxXP = 20                            // XP reward maximum
 ```cpp
 bOrientRotationToMovement = true
 RotationRate = FRotator(0, 1000, 0)
-bUseRVOAvoidance = true
-AvoidanceWeight = 0.5f
+bUseRVOAvoidance = false       // Disabled; lightweight per-tick separation used instead
+AvoidanceWeight = 0.5f         // Unused while RVO is off
 ```
 
 ## DataTable Setup
@@ -190,13 +192,59 @@ Content/Enemies/
 └── M_EnemyOutline.uasset       # Post-process outline material
 ```
 
-## RVO Avoidance
+## Crowd Push System
 
-Enemies use Reciprocal Velocity Obstacles to avoid clustering:
-- `bUseRVOAvoidance = true`
-- `AvoidanceWeight = 0.5f` (moderate priority)
+Enemies behind other enemies actively shove the front-row enemy toward the player, recreating the Vampire Survivors feel where fast back-row enemies ram slow front-row enemies into you.
 
-This keeps hordes spread while still converging on player.
+### How It Works
+
+Each tick, during the separation loop, enemy A checks if enemy B (nearby) is **closer to the player** than A is:
+- **B is in front (closer to player)**: A calls `B->AddCrowdPush(...)`, pushing B toward the player by A's proximity strength. A skips normal separation from B (no need to push away sideways).
+- **B is lateral/behind**: Normal separation applies — A pushes itself away from B.
+
+`CrowdPushVelocity` accumulates per-tick pushes and is applied via `SetActorLocation`. It decays rapidly when not being actively pushed.
+
+### Tuning Constants
+
+Located in `SurvivorEnemy.cpp` namespace `CrowdPushSettings`:
+
+```cpp
+MaxPushSpeed = 350.0f    // Max speed (uu/s) a trailing enemy can contribute
+PushDecay = 600.0f       // How fast push velocity drains when not being pushed (uu/s per s)
+```
+
+### Key Functions / State
+
+```cpp
+FVector CrowdPushVelocity;           // Accumulated push velocity on this enemy
+void AddCrowdPush(FVector Push);     // Called by a trailing enemy to shove this one forward
+```
+
+Both are reset in `Deactivate()` and `Reinitialize()` for pooling. `TargetPlayer` null-guard: if no player, `bOtherIsInFront` is false and normal separation runs.
+
+## Enemy Separation System
+
+RVO avoidance is disabled (`bUseRVOAvoidance = false`). Instead, enemies use a two-part approach that prevents deadlock clumping without the overhead of RVO:
+
+### Step 1 — No pawn blocking
+
+The capsule's `ECC_Pawn` response is set to `ECR_Overlap` (not `ECR_Block`):
+```cpp
+GetCapsuleComponent()->SetCollisionResponseToChannel(ECC_Pawn, ECR_Overlap);
+```
+Enemies still block the world geometry and the player capsule. They just pass through each other physically, which eliminates the root cause of deadlock clumps.
+
+### Step 2 — Per-tick separation force
+
+Each tick, each enemy sweeps an 80 uu sphere on `ECC_Pawn` and accumulates a push vector away from every overlapping enemy. The force scales linearly with proximity (max at dist=0, zero at `SeparationRadius`). It is then fed into `AddInputVector` at a fraction of `MaxWalkSpeed`, so enemies can still swarm the player — they just won't fully occupy the same pixel.
+
+**Tuning constants** (in `SurvivorEnemy.cpp` namespace `SeparationSettings`):
+```cpp
+SeparationRadius = 80.0f         // Detection + force falloff distance (uu)
+MaxSeparationSpeed = 120.0f      // Max speed contributed by separation (uu/s)
+```
+
+**Required include**: `Engine/OverlapResult.h` (for `FOverlapResult::GetActor()` in UE 5.4+).
 
 ## Enemy Spawn System
 

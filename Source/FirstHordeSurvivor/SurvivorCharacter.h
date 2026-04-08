@@ -153,6 +153,10 @@ protected:
 	UFUNCTION()
 	void OnHealthChanged(UAttributeComponent* Component, bool bIsResultOfEditorChange);
 
+	// Death handling
+	UFUNCTION()
+	void HandleDeath(UAttributeComponent* Component, bool bIsResultOfEditorChange);
+
 	// Event for Blueprint to update UI
 	UFUNCTION(BlueprintImplementableEvent, Category = "Events")
 	void OnHealthUpdated();
@@ -162,6 +166,9 @@ protected:
 
     UFUNCTION(BlueprintImplementableEvent, Category = "Events")
     void OnLevelUp(int32 NewLevel);
+
+    UFUNCTION(BlueprintImplementableEvent, Category = "Events")
+    void OnPlayerDeath();
 
 protected:
 	// Legacy support for UI

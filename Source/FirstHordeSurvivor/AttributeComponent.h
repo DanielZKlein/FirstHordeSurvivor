@@ -104,7 +104,7 @@ public:
 	// Apply damage with Armor reduction
 	// Returns the actual damage dealt after armor
 	UFUNCTION(BlueprintCallable, Category = "Attributes")
-	float ApplyArmoredDamage(float IncomingDamage);
+	float ApplyArmoredDamage(float IncomingDamage, AActor* DamageSource = nullptr);
 
 	// Delegate fired when any attribute is modified via the setter functions
 	UPROPERTY(BlueprintAssignable, Category = "Attributes")
@@ -156,7 +156,8 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Attributes")
 	float GetCurrentHealth() const;
 
-	// Invulnerability (set to false for enemies - they shouldn't have i-frames)
+	// Per-source invulnerability — each damage source (enemy) gets its own cooldown
+	// so being hit by enemy A doesn't protect from enemy B
 	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Attributes")
 	bool bUseInvulnerability = true;
 
@@ -164,8 +165,6 @@ public:
 	float InvulnerabilityDuration = 0.5f;
 
 protected:
-    bool bIsInvulnerable = false;
-    FTimerHandle TimerHandle_Invulnerability;
-
-    void EndInvulnerability();
+	// Maps each damage source to the world time when its i-frame expires
+	TMap<TWeakObjectPtr<AActor>, double> PerSourceIFrameExpiry;
 };

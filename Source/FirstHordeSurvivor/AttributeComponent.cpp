@@ -54,12 +54,6 @@ void UAttributeComponent::ApplyRegen()
 
 bool UAttributeComponent::ApplyHealthChange(float Delta)
 {
-    // I-Frame Check for Damage (player only)
-    if (bUseInvulnerability && Delta < 0.0f && bIsInvulnerable)
-    {
-        return false;
-    }
-
 	float OldHealth = CurrentHealth;
 	float MaxHP = MaxHealth.GetCurrentValue();
 
@@ -69,16 +63,6 @@ bool UAttributeComponent::ApplyHealthChange(float Delta)
 
 	if (ActualDelta != 0.0f)
 	{
-        // Apply I-Frames if we took damage (player only)
-        if (bUseInvulnerability && ActualDelta < 0.0f && InvulnerabilityDuration > 0.0f)
-        {
-            bIsInvulnerable = true;
-            if (GetWorld())
-            {
-                GetWorld()->GetTimerManager().SetTimer(TimerHandle_Invulnerability, this, &UAttributeComponent::EndInvulnerability, InvulnerabilityDuration, false);
-            }
-        }
-
 		// Broadcast change. Using 'true' for bIsResultOfEditorChange is a bit hacky, 
 		// maybe we should update the delegate signature later, but for now it works as a signal.
 		// Actually, let's just say 'false' as it's game logic.
@@ -93,11 +77,6 @@ bool UAttributeComponent::ApplyHealthChange(float Delta)
 	}
 
 	return false;
-}
-
-void UAttributeComponent::EndInvulnerability()
-{
-    bIsInvulnerable = false;
 }
 
 float UAttributeComponent::GetCurrentHealth() const
@@ -184,11 +163,30 @@ float UAttributeComponent::GetDamageResistPercent() const
 	return ImpactValue * 0.01f;  // 1% per point
 }
 
-float UAttributeComponent::ApplyArmoredDamage(float IncomingDamage)
+float UAttributeComponent::ApplyArmoredDamage(float IncomingDamage, AActor* DamageSource)
 {
 	if (IncomingDamage <= 0.0f)
 	{
 		return 0.0f;
+	}
+
+	// Per-source i-frame check: each damage source has its own cooldown
+	if (bUseInvulnerability && DamageSource && InvulnerabilityDuration > 0.0f)
+	{
+		double CurrentTime = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0;
+		TWeakObjectPtr<AActor> SourceKey(DamageSource);
+
+		if (double* ExpiryTime = PerSourceIFrameExpiry.Find(SourceKey))
+		{
+			if (CurrentTime < *ExpiryTime)
+			{
+				// This source is still in its i-frame window — block damage
+				return 0.0f;
+			}
+		}
+
+		// Record this source's i-frame expiry (set here before applying damage)
+		PerSourceIFrameExpiry.Add(SourceKey, CurrentTime + InvulnerabilityDuration);
 	}
 
 	// Apply flat armor reduction

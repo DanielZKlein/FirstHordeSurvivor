@@ -75,6 +75,7 @@ void ASurvivorCharacter::BeginPlay()
 	if (AttributeComp)
 	{
 		AttributeComp->OnAttributeChanged.AddDynamic(this, &ASurvivorCharacter::OnAttributeChanged);
+		AttributeComp->OnDeath.AddDynamic(this, &ASurvivorCharacter::HandleDeath);
 	}
 
 	// Add Input Mapping Context
@@ -265,6 +266,28 @@ void ASurvivorCharacter::PostInitializeComponents()
 		CurHealth = AttributeComp->GetCurrentHealth();
 		MaxHealth = AttributeComp->MaxHealth.GetCurrentValue();
 	}
+}
+
+void ASurvivorCharacter::HandleDeath(UAttributeComponent* Component, bool bIsResultOfEditorChange)
+{
+	// Disable player input
+	if (APlayerController* PC = Cast<APlayerController>(GetController()))
+	{
+		DisableInput(PC);
+	}
+
+	// Stop movement
+	GetCharacterMovement()->StopMovementImmediately();
+	GetCharacterMovement()->DisableMovement();
+
+	// Disable collision so enemies stop attacking
+	GetCapsuleComponent()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+
+	// Pause the game — freezes all enemy ticks, spawning timers, XP gem movement
+	UGameplayStatics::SetGamePaused(GetWorld(), true);
+
+	// Fire Blueprint event so the HUD can show the death screen
+	OnPlayerDeath();
 }
 
 void ASurvivorCharacter::OnHealthChanged(UAttributeComponent* Component, bool bIsResultOfEditorChange)

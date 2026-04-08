@@ -1,0 +1,20 @@
+{
+  "enabledPlugins": {
+    "antigravity-awesome-skills@antigravity-awesome-skills": true,
+    "antigravity-bundle-indie-game-dev@antigravity-awesome-skills": true
+  },
+  "hooks": {
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "powershell -WindowStyle Hidden -ExecutionPolicy Bypass -File \"C:/Users/Cobratype PC/.claude/notify-done.ps1\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -75,6 +75,12 @@ public:
 	UPROPERTY()
 	TSet<ASurvivorEnemy*> KnockbackHitEnemies;
 
+	// Crowd push — accumulated velocity from enemies behind pushing this one toward the player
+	FVector CrowdPushVelocity = FVector::ZeroVector;
+
+	// Called by a trailing enemy to push this one forward (toward the player)
+	void AddCrowdPush(FVector Push);
+
 	// Functions
 	UFUNCTION()
 	void OnOverlapBegin(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult);

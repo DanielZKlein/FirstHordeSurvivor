@@ -147,7 +147,7 @@ C++ base class for the upgrade selection UI. Starts collapsed, shows on `ShowUpg
 ## Stat Enums
 
 ### EPlayerStat
-MaxHealth, HealthRegen, MaxSpeed, MaxAcceleration, MovementControl, Armor, Impact
+MaxHealth, HealthRegen, MaxSpeed, MaxAcceleration, MovementControl, Armor, Impact, PickupRadius
 
 ### EWeaponStat
 Damage, AttackSpeed, Area, Penetration, ProjectileSpeed, ProjectileCount, Duration, Range, Knockback

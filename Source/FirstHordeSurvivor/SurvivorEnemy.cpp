@@ -14,6 +14,17 @@
 #include "EnemySpawnSubsystem.h"
 #include "Blueprint/UserWidget.h"
 #include "Components/ProgressBar.h"
+#include "Engine/OverlapResult.h"
+
+// Enemy separation tuning constants
+namespace SeparationSettings
+{
+	// Radius within which we push away from other enemies
+	constexpr float SeparationRadius = 150.0f;
+
+	// Max speed added by separation force (units/sec) — gentle, just prevents full overlap
+	constexpr float MaxSeparationSpeed = 400.0f;
+}
 
 // Knockback tuning constants
 namespace KnockbackSettings
@@ -45,6 +56,24 @@ namespace KnockbackSettings
 	constexpr float MinKnockbackMultiplier = 0.1f;
 }
 
+// Crowd push tuning — enemies behind shove enemies in front toward the player
+namespace CrowdPushSettings
+{
+	// Extra speed (units/sec) a fully-adjacent trailing enemy adds to the front enemy
+	constexpr float MaxPushSpeed = 350.0f;
+
+	// How fast push velocity decays when no longer being pushed (units/sec lost per sec)
+	constexpr float PushDecay = 600.0f;
+}
+
+// Orbital approach tuning
+namespace OrbitSettings
+{
+	// Distance at which enemies stop pushing toward the player.
+	// Should be slightly less than AttackOverlapComp radius (150) so they're in attack range.
+	constexpr float OrbitRadius = 120.0f;
+}
+
 ASurvivorEnemy::ASurvivorEnemy()
 {
 	PrimaryActorTick.bCanEverTick = true;
@@ -54,6 +83,9 @@ ASurvivorEnemy::ASurvivorEnemy()
 
 	EnemyMeshComp = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("EnemyMeshComp"));
 	EnemyMeshComp->SetupAttachment(GetCapsuleComponent());
+	// The mesh is visual-only. Disable all collision so it never blocks Pawns
+	// (the capsule owns all physics interaction; AttackOverlapComp owns hit detection).
+	EnemyMeshComp->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 
 	AttackOverlapComp = CreateDefaultSubobject<USphereComponent>(TEXT("AttackOverlapComp"));
 	AttackOverlapComp->SetupAttachment(RootComponent);
@@ -70,7 +102,12 @@ ASurvivorEnemy::ASurvivorEnemy()
 
 	// Configure collisions
 	GetCapsuleComponent()->SetCollisionProfileName("Pawn");
-	
+	// Let enemies pass through each other so they can't deadlock/clump.
+	// Separation is handled by a lightweight per-tick push force instead.
+	// ECR_Ignore (vs ECR_Overlap) tells CharacterMovementComponent's internal sweep tests
+	// to completely skip other Pawns, eliminating steering/push interference.
+	GetCapsuleComponent()->SetCollisionResponseToChannel(ECC_Pawn, ECR_Ignore);
+
 	// We want the overlap event to trigger attacks
 	AttackOverlapComp->OnComponentBeginOverlap.AddDynamic(this, &ASurvivorEnemy::OnOverlapBegin);
 	AttackOverlapComp->OnComponentEndOverlap.AddDynamic(this, &ASurvivorEnemy::OnOverlapEnd);
@@ -82,7 +119,7 @@ ASurvivorEnemy::ASurvivorEnemy()
 	GetCharacterMovement()->bRunPhysicsWithNoController = true;  // Critical: allow movement without AI controller
 
 	// Avoidance
-	GetCharacterMovement()->bUseRVOAvoidance = true;
+	GetCharacterMovement()->bUseRVOAvoidance = false;
 	GetCharacterMovement()->AvoidanceWeight = 0.5f;
 }
 
@@ -170,6 +207,94 @@ void ASurvivorEnemy::Tick(float DeltaTime)
 	// Process knockback momentum and collisions
 	ProcessKnockback(DeltaTime);
 
+	// Apply crowd push velocity (from trailing enemies shoving us toward the player)
+	if (!CrowdPushVelocity.IsNearlyZero(1.0f))
+	{
+		SetActorLocation(GetActorLocation() + CrowdPushVelocity * DeltaTime);
+		float PushSpeed = CrowdPushVelocity.Size();
+		float NewPushSpeed = FMath::Max(0.f, PushSpeed - CrowdPushSettings::PushDecay * DeltaTime);
+		CrowdPushVelocity = NewPushSpeed > 1.f ? CrowdPushVelocity.GetSafeNormal() * NewPushSpeed : FVector::ZeroVector;
+	}
+
+	// --- Separation force ---
+	// Find nearby enemies and add a gentle push away from each one.
+	// Uses OverlapMultiByObjectType (Pawn object type) instead of OverlapMultiByChannel so
+	// that the query is unaffected by the capsule's ECR_Ignore response to ECC_Pawn.
+	// Channel queries respect the response matrix on both sides; object-type queries do not.
+	{
+		TArray<FOverlapResult> Overlaps;
+		FCollisionShape Sphere = FCollisionShape::MakeSphere(SeparationSettings::SeparationRadius);
+		FCollisionQueryParams QueryParams;
+		QueryParams.AddIgnoredActor(this);
+
+		FCollisionObjectQueryParams ObjectQueryParams;
+		ObjectQueryParams.AddObjectTypesToQuery(ECC_Pawn);
+
+		if (GetWorld()->OverlapMultiByObjectType(Overlaps, GetActorLocation(), FQuat::Identity, ObjectQueryParams, Sphere, QueryParams))
+		{
+			FVector SeparationInput = FVector::ZeroVector;
+
+			// Pre-compute my distance to the player (used for crowd push eligibility)
+			float MyDistToPlayer = TargetPlayer
+				? (GetActorLocation() - TargetPlayer->GetActorLocation()).Size2D()
+				: MAX_FLT;
+
+			for (const FOverlapResult& Hit : Overlaps)
+			{
+				ASurvivorEnemy* OtherEnemy = Cast<ASurvivorEnemy>(Hit.GetActor());
+				if (!OtherEnemy)
+				{
+					continue;
+				}
+
+				FVector Away = GetActorLocation() - OtherEnemy->GetActorLocation();
+				Away.Z = 0.0f;
+				float Dist = Away.Size2D();
+
+				if (Dist < KINDA_SMALL_NUMBER)
+				{
+					// Perfectly overlapping — push in a stable arbitrary direction
+					Away = FVector(1.0f, 0.0f, 0.0f);
+					Dist = 1.0f;
+				}
+
+				// Force scales linearly: strongest at dist=0, zero at SeparationRadius
+				float Strength = 1.0f - FMath::Clamp(Dist / SeparationSettings::SeparationRadius, 0.0f, 1.0f);
+
+				// Crowd push only when we're still approaching (outside orbit radius).
+				// Once at the player, everyone spreads via normal separation instead of
+				// shoving front-row enemies through the player into a blob.
+				bool bOtherIsInFront = TargetPlayer &&
+					MyDistToPlayer > OrbitSettings::OrbitRadius &&
+					(OtherEnemy->GetActorLocation() - TargetPlayer->GetActorLocation()).Size2D() < MyDistToPlayer;
+
+				if (bOtherIsInFront)
+				{
+					// Push them toward the player — trailing enemies shove the front row forward
+					FVector ToPlayerFromOther = TargetPlayer->GetActorLocation() - OtherEnemy->GetActorLocation();
+					ToPlayerFromOther.Z = 0.0f;
+					FVector PushDir = ToPlayerFromOther.GetSafeNormal();
+					OtherEnemy->AddCrowdPush(PushDir * Strength * CrowdPushSettings::MaxPushSpeed);
+				}
+				else
+				{
+					// Normal separation: push ourselves away from lateral/trailing enemies,
+					// or from any neighbor when we're already at attack range
+					SeparationInput += (Away / Dist) * Strength;
+				}
+			}
+
+			if (!SeparationInput.IsNearlyZero())
+			{
+				// Normalise direction, scale to a fixed max speed, then feed as input
+				// (AddInputVector is consumed by CharacterMovement and blended with walk speed)
+				SeparationInput = SeparationInput.GetSafeNormal()
+					* (SeparationSettings::MaxSeparationSpeed / GetCharacterMovement()->MaxWalkSpeed);
+				GetCharacterMovement()->AddInputVector(SeparationInput);
+			}
+		}
+	}
+
 	// Simple Chase Logic
 	// We don't use AIController for thousands of units usually, but for v0.1 simple AddMovementInput is fine
 	// or SimpleMoveToActor if we had a controller.
@@ -177,44 +302,29 @@ void ASurvivorEnemy::Tick(float DeltaTime)
 
 	if (TargetPlayer)
 	{
-		FVector Direction = (TargetPlayer->GetActorLocation() - GetActorLocation()).GetSafeNormal();
+		FVector ToPlayer = TargetPlayer->GetActorLocation() - GetActorLocation();
+		ToPlayer.Z = 0.0f;
+		float DistToPlayer = ToPlayer.Size2D();
 
-		// Flatten Z
-		Direction.Z = 0.f;
-
-		// Use AddInputVector directly on movement component - bypasses controller requirement
 		UCharacterMovementComponent* MoveComp = GetCharacterMovement();
 		if (MoveComp)
 		{
-			MoveComp->AddInputVector(Direction);
-
-			// Debug: Log state for stuck enemies
-			static TMap<FString, float> DebugTimers;
-			float& Timer = DebugTimers.FindOrAdd(GetName());
-			Timer += DeltaTime;
-
-			if (MoveComp->Velocity.Size() < 1.0f && Timer > 3.0f)
+			if (DistToPlayer > OrbitSettings::OrbitRadius)
 			{
-				FVector ConsumedInput = MoveComp->GetLastInputVector();
-				UE_LOG(LogTemp, Warning, TEXT("%s STUCK: Dir=%s, ConsumedInput=%s, Vel=%s, MaxSpeed=%.0f, Mode=%d, GroundMov=%d, HasInput=%d"),
-					*GetName(),
-					*Direction.ToString(),
-					*ConsumedInput.ToString(),
-					*MoveComp->Velocity.ToString(),
-					MoveComp->MaxWalkSpeed,
-					(int32)MoveComp->MovementMode,
-					MoveComp->IsMovingOnGround(),
-					!ConsumedInput.IsNearlyZero());
-				Timer = 0.0f;
+				// Outside orbit radius: chase toward player normally
+				FVector Direction = ToPlayer / DistToPlayer;
+				MoveComp->AddInputVector(Direction);
 			}
-			else if (MoveComp->Velocity.Size() >= 1.0f)
-			{
-				Timer = 0.0f;  // Reset timer for moving enemies
-			}
+			// Inside orbit radius: don't push further in.
+			// The separation force handles lateral positioning naturally.
 		}
 
-		// Force rotation to face movement direction
-		SetActorRotation(Direction.Rotation());
+		// Always face the player regardless of movement
+		if (DistToPlayer > KINDA_SMALL_NUMBER)
+		{
+			FVector FaceDir = ToPlayer / DistToPlayer;
+			SetActorRotation(FaceDir.Rotation());
+		}
 	}
 
 	// Decay hit flash (with hold period)
@@ -276,7 +386,7 @@ void ASurvivorEnemy::AttackPlayer()
 		UAttributeComponent* PlayerAttributes = TargetPlayer->AttributeComp;
 		if (PlayerAttributes)
 		{
-			PlayerAttributes->ApplyArmoredDamage(EnemyData->BaseDamage);
+			PlayerAttributes->ApplyArmoredDamage(EnemyData->BaseDamage, this);
 		}
 		else
 		{
@@ -505,6 +615,11 @@ void ASurvivorEnemy::ProcessKnockback(float DeltaTime)
 	}
 }
 
+void ASurvivorEnemy::AddCrowdPush(FVector Push)
+{
+	CrowdPushVelocity = (CrowdPushVelocity + Push).GetClampedToMaxSize(CrowdPushSettings::MaxPushSpeed);
+}
+
 void ASurvivorEnemy::Deactivate()
 {
 	// Hide and disable
@@ -531,6 +646,9 @@ void ASurvivorEnemy::Deactivate()
 	// Reset knockback
 	KnockbackVelocity = FVector::ZeroVector;
 	KnockbackHitEnemies.Empty();
+
+	// Reset crowd push
+	CrowdPushVelocity = FVector::ZeroVector;
 }
 
 void ASurvivorEnemy::Reinitialize(UDataTable* DataTable, FName RowName, FVector Location)
@@ -553,6 +671,15 @@ void ASurvivorEnemy::Reinitialize(UDataTable* DataTable, FName RowName, FVector 
 
 	// Re-enable collision on capsule
 	GetCapsuleComponent()->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+
+	// CRITICAL: Re-apply ECR_Ignore for ECC_Pawn after pool reactivation.
+	// SetActorEnableCollision(true) above may reset the collision profile to "Pawn" defaults
+	// which has ECR_Block for ECC_Pawn, undoing the constructor's ECR_Ignore setting.
+	GetCapsuleComponent()->SetCollisionResponseToChannel(ECC_Pawn, ECR_Ignore);
+
+	// Re-apply no-collision on the mesh. SetActorEnableCollision(true) restores saved
+	// component profiles, which would bring back the mesh's default blocking profile.
+	EnemyMeshComp->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 
 	// Re-enable movement - force full reset of movement component state
 	// Pre-warmed enemies spawned at Z=-10000 have corrupted floor detection
@@ -605,4 +732,7 @@ void ASurvivorEnemy::Reinitialize(UDataTable* DataTable, FName RowName, FVector 
 	// Reset knockback
 	KnockbackVelocity = FVector::ZeroVector;
 	KnockbackHitEnemies.Empty();
+
+	// Reset crowd push
+	CrowdPushVelocity = FVector::ZeroVector;
 }
