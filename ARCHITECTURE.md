@@ -2,16 +2,20 @@
 
 UE5 C++ Vampire Survivors-style horde game with data-driven configuration.
 
+_Last updated: 2026-05-17 (flow field pathfinding added)_
+
 ## Project Structure
 
 ```
 Source/FirstHordeSurvivor/
 ├── SurvivorGameMode.h/cpp       # Game initialization, subsystem setup
 ├── SurvivorCharacter.h/cpp      # Player: movement, XP, weapon spawning
-├── SurvivorEnemy.h/cpp          # Enemy: chase AI, attacks, death/drops
+├── SurvivorEnemy.h/cpp          # Enemy: flow-field chase, attacks, death/drops
 ├── SurvivorWeapon.h/cpp         # Auto-targeting weapon controller
 ├── SurvivorProjectile.h/cpp     # Projectile physics and hit detection
 ├── AttributeComponent.h/cpp     # Modular stat system (health, speed)
+├── EnemySpawnSubsystem.h/cpp    # Enemy pooling, weighted spawning, floor bounds
+├── FlowFieldSubsystem.h/cpp     # Dijkstra-flood-fill pathfinding (10Hz BFS)
 ├── XPGemSubsystem.h/cpp         # Gem pooling and spawning
 ├── XPGem.h/cpp                  # Gem actor with state machine
 ├── WeaponData.h                 # Weapon configuration DataAsset
@@ -39,11 +43,13 @@ Source/FirstHordeSurvivor/
 - Invulnerability system (0.5s after hit)
 
 ### ASurvivorEnemy
-- Chase AI: direct pursuit toward player each tick
-- RVO avoidance enabled for horde behavior
+- Chase AI: samples `UFlowFieldSubsystem::SampleDirection` (bilinear flow field) and falls back to direct ToPlayer steering when off-grid or pre-init
+- Layered movement systems on top of flow field: separation push (`SeparationSettings`), crowd push from trailing enemies (`CrowdPushSettings`), knockback with momentum chains (`KnockbackSettings`), and a 0.5s self-stun after dealing damage
+- RVO avoidance is disabled (`bUseRVOAvoidance = false`); enemy capsules ECR_Ignore each other, separation forces handle spacing
+- Outside orbit radius faces velocity; inside orbit faces player
 - Attack overlap sphere (150 radius), 1s attack interval
 - Drops XP gems on death (greedy tier decomposition)
-- Configured via `UEnemyData` DataAsset
+- Configured via `UEnemyData` DataAsset, pooled by `UEnemySpawnSubsystem`
 
 ### UAttributeComponent
 - Attached to player and enemies
@@ -75,6 +81,20 @@ Source/FirstHordeSurvivor/
 - Weighted random selection of 3 upgrades on level-up
 - Applies effects to player attributes and weapon stats
 - Tracks owned upgrades (stacks) and weapon states (levels)
+
+### UEnemySpawnSubsystem (WorldSubsystem)
+- Pools `ASurvivorEnemy` actors (`PreWarmCount=20`, `MaxEnemiesOnMap=350`)
+- Weighted random spawn type selection from `DT_EnemySpawns` (time-gated unlock/deprecation)
+- Time-based + responsive spawn rate (faster when below target count)
+- Caches floor bounds from a `LevelFloor` brush to clamp spawn locations; exposes them via `GetFloorBounds()` / `HasFloorBounds()` for the flow field subsystem to reuse
+
+### UFlowFieldSubsystem (WorldSubsystem)
+- Path-aware enemy navigation. One BFS per update covers every enemy on the map (cost independent of horde size).
+- Dijkstra flood-fill from player cell (8-direction, integer costs 10/14) at 10Hz, sized from floor bounds with cell auto-upscaling.
+- Capsule-sweep obstacle pass at init (`ECC_WorldStatic` + `ECC_WorldDynamic`); call `RefreshBlockedCells` (or `ff.refresh` console) after spawning walls at runtime.
+- Bilinear-sampled `SampleDirection` returns `ZeroVector` when off-grid / on blocked / pre-init — callers fall back to direct steering.
+- Debug: `ff.debug 1` (arrows), `ff.debug 2` (+ blocked boxes), `ff.enable 0` (kill switch).
+- Full spec: `memory/flowfield-pathfinding.md`
 
 ## Key Patterns
 

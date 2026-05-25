@@ -76,29 +76,29 @@ public:
 
 	// Spawn Rate Settings
 	UPROPERTY(EditAnywhere, Category = "Spawn Rate")
-	float BaseSpawnRate = 10.0f;  // Spawns per minute at game start
+	float BaseSpawnRate = 90.0f;  // Spawns per minute at game start
 
 	UPROPERTY(EditAnywhere, Category = "Spawn Rate")
-	float SpawnRateGrowth = 5.0f;  // Extra spawns/min per minute elapsed
+	float SpawnRateGrowth = 4.0f;  // Extra spawns/min per minute elapsed
 
 	UPROPERTY(EditAnywhere, Category = "Spawn Rate")
-	float MaxSpawnRate = 2000.0f;  // Hard cap on spawns per minute
+	float MaxSpawnRate = 200.0f;  // Hard cap on spawns per minute
 
 	// Responsive System - Target Enemy Count (scales with time)
 	UPROPERTY(EditAnywhere, Category = "Spawn Rate")
-	float BaseTargetCount = 50.0f;  // Target enemy count at game start
+	float BaseTargetCount = 3.0f;  // Target enemy count at game start
 
 	UPROPERTY(EditAnywhere, Category = "Spawn Rate")
 	float TargetCountGrowth = 20.0f;  // Extra target enemies per minute elapsed
 
 	UPROPERTY(EditAnywhere, Category = "Spawn Rate")
-	float MaxTargetCount = 300.0f;  // Cap on target count (should be <= MaxEnemiesOnMap)
+	float MaxTargetCount = 20.0f;  // Cap on target count (should be <= MaxEnemiesOnMap)
 
 	UPROPERTY(EditAnywhere, Category = "Spawn Rate")
-	float MaxResponsiveBonus = 200.0f;  // Max extra spawns/min when few enemies
+	float MaxResponsiveBonus = 40.0f;  // Max extra spawns/min when few enemies
 
 	UPROPERTY(EditAnywhere, Category = "Spawn Rate")
-	float Responsiveness = 0.9f;  // 0-1, how aggressively to spawn when empty
+	float Responsiveness = 0.6f;  // 0-1, how aggressively to spawn when empty
 
 	// Caps
 	UPROPERTY(EditAnywhere, Category = "Limits")
@@ -121,11 +121,19 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Debug")
 	bool bShowDebugHUD = true;
 
+	// Public accessors — the flow field subsystem reuses these floor bounds to size its grid.
+	FBox GetFloorBounds() const { return FloorBounds; }
+	bool HasFloorBounds() const { return bHasFloorBounds; }
+	// The matched floor actor (e.g., LevelFloor brush). FlowFieldSubsystem excludes this from
+	// its obstacle probe so the floor itself isn't marked as a wall.
+	AActor* GetFloorActor() const { return FloorActor.Get(); }
+
 protected:
 	void UpdateDebugHUD();
 	// Cached floor bounds
 	FBox FloorBounds;
 	bool bHasFloorBounds = false;
+	TWeakObjectPtr<AActor> FloorActor;
 	// Pool storage
 	UPROPERTY()
 	TArray<ASurvivorEnemy*> EnemyPool;

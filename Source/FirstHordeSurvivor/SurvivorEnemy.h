@@ -75,11 +75,12 @@ public:
 	UPROPERTY()
 	TSet<ASurvivorEnemy*> KnockbackHitEnemies;
 
-	// Crowd push — accumulated velocity from enemies behind pushing this one toward the player
-	FVector CrowdPushVelocity = FVector::ZeroVector;
+	float DamageStunTimer = 0.0f;  // counts down after dealing damage; movement disabled while > 0
 
-	// Called by a trailing enemy to push this one forward (toward the player)
-	void AddCrowdPush(FVector Push);
+	// Constructor-time capsule defaults — cached so InitializeFromData can scale from the
+	// original base each time (otherwise SetCapsuleSize compounds on pooled re-init).
+	float DefaultCapsuleRadius;
+	float DefaultCapsuleHalfHeight;
 
 	// Functions
 	UFUNCTION()

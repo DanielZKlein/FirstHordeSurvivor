@@ -378,27 +378,74 @@ void UEnemySpawnSubsystem::CacheFloorBounds()
 		return;
 	}
 
-	// Find the LevelFloor brush by name or label
-	for (TActorIterator<ABrush> It(World); It; ++It)
-	{
-		ABrush* Brush = *It;
-		if (Brush)
-		{
-			FString ActorName = Brush->GetName();
-			FString ActorLabel = Brush->GetActorLabel();
+	// Build tag — change this string when you edit this function so you can verify in the
+	// log that the latest compiled version is actually loaded (Live Coding silently fails
+	// sometimes).
+	UE_LOG(LogTemp, Log, TEXT("===== EnemySpawnSubsystem::CacheFloorBounds build=2026-05-17e ====="));
 
-			if (ActorName.Contains(TEXT("LevelFloor")) || ActorLabel.Contains(TEXT("LevelFloor")))
-			{
-				FVector Origin, Extent;
-				Brush->GetActorBounds(false, Origin, Extent);
-				FloorBounds = FBox(Origin - Extent, Origin + Extent);
-				bHasFloorBounds = true;
-				return;
-			}
-		}
+	// Match against name, label, OR class name — covers BSP brushes, static-mesh actors,
+	// Blueprint instances. Case-insensitive.
+	auto MatchesFloor = [](const FString& S) -> bool
+	{
+		return S.Contains(TEXT("LevelFloor"), ESearchCase::IgnoreCase);
+	};
+
+	// Always dump every brush we see — this is the user-confirmed actor type, and there's
+	// usually <5 of them, so the log volume is fine.
+	TArray<AActor*> AllBrushes;
+	for (TActorIterator<ABrush> BrushIt(World); BrushIt; ++BrushIt)
+	{
+		if (ABrush* B = *BrushIt) { AllBrushes.Add(B); }
+	}
+	UE_LOG(LogTemp, Log, TEXT("EnemySpawnSubsystem: Brushes in level (%d):"), AllBrushes.Num());
+	for (AActor* B : AllBrushes)
+	{
+		FVector O, E;
+		B->GetActorBounds(false, O, E);
+		UE_LOG(LogTemp, Log,
+			TEXT("    name='%s' label='%s' class='%s' origin=(%.0f,%.0f,%.0f) extent=(%.0f,%.0f,%.0f)"),
+			*B->GetName(), *B->GetActorLabel(),
+			B->GetClass() ? *B->GetClass()->GetName() : TEXT("?"),
+			O.X, O.Y, O.Z, E.X, E.Y, E.Z);
 	}
 
-	UE_LOG(LogTemp, Warning, TEXT("EnemySpawnSubsystem: No LevelFloor brush found! Spawns will not be constrained."));
+	// Two-pass: first try brushes (the confirmed floor type), then any other actor.
+	auto TryMatch = [&](AActor* Actor) -> bool
+	{
+		if (!Actor) return false;
+		const FString ActorName  = Actor->GetName();
+		const FString ActorLabel = Actor->GetActorLabel();
+		const FString ClassName  = Actor->GetClass() ? Actor->GetClass()->GetName() : FString();
+		if (!MatchesFloor(ActorName) && !MatchesFloor(ActorLabel) && !MatchesFloor(ClassName))
+		{
+			return false;
+		}
+
+		FVector Origin, Extent;
+		Actor->GetActorBounds(false, Origin, Extent);
+		FloorBounds = FBox(Origin - Extent, Origin + Extent);
+		bHasFloorBounds = true;
+		FloorActor = Actor;
+
+		UE_LOG(LogTemp, Log,
+			TEXT("EnemySpawnSubsystem: ✓ Matched floor actor '%s' (label='%s', class='%s'), bounds origin=(%.0f,%.0f,%.0f) extent=(%.0f,%.0f,%.0f)"),
+			*ActorName, *ActorLabel, *ClassName,
+			Origin.X, Origin.Y, Origin.Z, Extent.X, Extent.Y, Extent.Z);
+		return true;
+	};
+
+	for (AActor* B : AllBrushes)
+	{
+		if (TryMatch(B)) { return; }
+	}
+	for (TActorIterator<AActor> It(World); It; ++It)
+	{
+		if (TryMatch(*It)) { return; }
+	}
+
+	UE_LOG(LogTemp, Warning,
+		TEXT("EnemySpawnSubsystem: ✗ No actor matching 'LevelFloor' (case-insensitive, name/label/class) found across %d brushes and all other actors."),
+		AllBrushes.Num());
 }
 
 FVector UEnemySpawnSubsystem::ClampToFloorBounds(FVector Location)

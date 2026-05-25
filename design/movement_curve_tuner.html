@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Pinball Survivors — Acceleration Curve Tuner</title>
+<style>
+    :root {
+        --bg: #1a1d24;
+        --panel: #252932;
+        --ink: #e6e8eb;
+        --muted: #8b94a6;
+        --accent: #6cb9ff;
+        --good: #6ce0a9;
+        --warn: #ffce6c;
+        --bad: #ff7a7a;
+        --grid: #353a45;
+    }
+    * { box-sizing: border-box; }
+    body {
+        margin: 0; padding: 20px;
+        background: var(--bg); color: var(--ink);
+        font-family: -apple-system, "Segoe UI", system-ui, sans-serif;
+        display: grid;
+        grid-template-columns: 360px 1fr;
+        gap: 20px;
+        min-height: 100vh;
+    }
+    h1 { font-size: 18px; margin: 0 0 6px 0; color: var(--accent); }
+    h2 { font-size: 13px; margin: 18px 0 8px 0; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
+    .panel {
+        background: var(--panel);
+        padding: 16px;
+        border-radius: 8px;
+        border: 1px solid #2f333d;
+    }
+    .control { margin-bottom: 14px; }
+    .control label {
+        display: flex; justify-content: space-between;
+        font-size: 12px; margin-bottom: 4px;
+        color: var(--ink);
+    }
+    .control label .val { color: var(--accent); font-variant-numeric: tabular-nums; }
+    .control input[type=range] { width: 100%; accent-color: var(--accent); }
+    .hint { font-size: 11px; color: var(--muted); margin-top: 2px; line-height: 1.4; }
+    .chart-wrap {
+        background: var(--panel);
+        border-radius: 8px;
+        border: 1px solid #2f333d;
+        padding: 18px;
+        position: relative;
+        display: flex; flex-direction: column;
+    }
+    canvas { width: 100%; height: 500px; display: block; background: #15171c; border-radius: 4px; }
+    .legend {
+        display: flex; flex-wrap: wrap; gap: 14px;
+        margin-top: 12px; font-size: 12px; color: var(--muted);
+    }
+    .legend span { display: inline-flex; align-items: center; gap: 6px; }
+    .swatch { width: 12px; height: 12px; border-radius: 2px; display: inline-block; }
+    .readout {
+        display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px 16px;
+        margin-top: 14px; font-size: 12px;
+    }
+    .readout .k { color: var(--muted); }
+    .readout .v { color: var(--ink); font-variant-numeric: tabular-nums; }
+    .presets { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
+    .presets button {
+        background: #353a45; color: var(--ink); border: 0; padding: 6px 10px;
+        border-radius: 4px; cursor: pointer; font-size: 12px;
+    }
+    .presets button:hover { background: var(--accent); color: #15171c; }
+    .group { border-top: 1px solid #353a45; padding-top: 12px; }
+</style>
+</head>
+<body>
+
+<div>
+    <div class="panel">
+        <h1>Accel Curve Tuner</h1>
+        <div class="hint">Acceleration as a function of current speed %. Drag sliders to feel the shape.</div>
+
+        <h2>Presets</h2>
+        <div class="presets">
+            <button onclick="applyPreset('default')">Daniel's spec</button>
+            <button onclick="applyPreset('snappy')">Snappy</button>
+            <button onclick="applyPreset('heavy')">Heavy ball</button>
+            <button onclick="applyPreset('unreal')">Unreal default</button>
+        </div>
+
+        <h2>Magnitudes</h2>
+        <div class="control">
+            <label>Max Acceleration <span class="val" id="v-maxAccel"></span></label>
+            <input type="range" id="maxAccel" min="500" max="8000" step="50" value="3000">
+            <div class="hint">The plateau value. Units: cm/s².</div>
+        </div>
+        <div class="control">
+            <label>Base Acceleration <span class="val" id="v-base"></span></label>
+            <input type="range" id="base" min="0" max="500" step="10" value="60">
+            <div class="hint">Floor — accel at speed=0. Keep low for the "heavy start" feel.</div>
+        </div>
+
+        <h2 class="group">Cold Start (0 → ColdStartEnd)</h2>
+        <div class="control">
+            <label>Cold-Start End <span class="val" id="v-coldEnd"></span></label>
+            <input type="range" id="coldEnd" min="3" max="20" step="1" value="10">
+            <div class="hint">Speed % at which we reach Max Acceleration.</div>
+        </div>
+        <div class="control">
+            <label>a (on-ramp factor) <span class="val" id="v-a"></span></label>
+            <input type="range" id="a" min="0.3" max="3.0" step="0.05" value="1.10">
+            <div class="hint">Higher = shorter "dead zone" near 0 speed.</div>
+        </div>
+        <div class="control">
+            <label>b (curve exponent) <span class="val" id="v-b"></span></label>
+            <input type="range" id="b" min="0.8" max="6.0" step="0.1" value="2.5">
+            <div class="hint">>1: concave-up "spike". 1: linear. &lt;1: concave-down.</div>
+        </div>
+
+        <h2 class="group">Plateau & Linear Falloff</h2>
+        <div class="control">
+            <label>Plateau End <span class="val" id="v-platEnd"></span></label>
+            <input type="range" id="platEnd" min="10" max="40" step="1" value="15">
+            <div class="hint">Speed % where linear drop begins. (Spec: 15%)</div>
+        </div>
+        <div class="control">
+            <label>Edge Start <span class="val" id="v-edgeStart"></span></label>
+            <input type="range" id="edgeStart" min="60" max="95" step="1" value="85">
+            <div class="hint">Speed % where the cliff-drop edge phase begins. (Spec: 85%)</div>
+        </div>
+        <div class="control">
+            <label>Edge-Start Accel (% of Max) <span class="val" id="v-edgeAcc"></span></label>
+            <input type="range" id="edgeAcc" min="10" max="80" step="1" value="35">
+            <div class="hint">Where the linear falloff lands at the start of the edge phase.</div>
+        </div>
+
+        <h2 class="group">Edge Phase (EdgeStart → 100%)</h2>
+        <div class="control">
+            <label>Edge p (cliff-shape exponent) <span class="val" id="v-edgeP"></span></label>
+            <input type="range" id="edgeP" min="0.10" max="5.00" step="0.05" value="2.50">
+            <div class="hint">>1: steep drop then slow tail (you can squeeze out tiny gains forever). &lt;1: gentle drop then a wall at 100%.</div>
+        </div>
+    </div>
+</div>
+
+<div class="chart-wrap">
+    <canvas id="chart"></canvas>
+    <div class="legend">
+        <span><i class="swatch" style="background:#6cb9ff"></i>Cold-start (0 → ColdEnd)</span>
+        <span><i class="swatch" style="background:#6ce0a9"></i>Plateau (ColdEnd → PlatEnd)</span>
+        <span><i class="swatch" style="background:#ffce6c"></i>Linear falloff (PlatEnd → EdgeStart)</span>
+        <span><i class="swatch" style="background:#ff7a7a"></i>Edge phase (EdgeStart → 100%)</span>
+        <span><i class="swatch" style="background:#8b94a6"></i>Time-to-reach (right axis)</span>
+    </div>
+
+    <div class="readout">
+        <div class="k">Time 0 → 5% speed</div>           <div class="v" id="r-t5"></div>
+        <div class="k">Time 0 → 15% speed</div>          <div class="v" id="r-t15"></div>
+        <div class="k">Time 0 → 50% speed</div>          <div class="v" id="r-t50"></div>
+        <div class="k">Time 0 → 85% speed</div>          <div class="v" id="r-t85"></div>
+        <div class="k">Time 0 → 99% speed</div>          <div class="v" id="r-t99"></div>
+        <div class="k">Accel at 50% speed</div>          <div class="v" id="r-a50"></div>
+        <div class="k">Accel at 85% speed</div>          <div class="v" id="r-a85"></div>
+        <div class="k">Accel at 95% speed</div>          <div class="v" id="r-a95"></div>
+    </div>
+</div>
+
+<script>
+// ---- model ---------------------------------------------------------------
+const PRESETS = {
+    default: { maxAccel: 3000, base: 60,  coldEnd: 10, a: 1.10, b: 2.5,
+               platEnd: 15, edgeStart: 85, edgeAcc: 35, edgeP: 2.50 },
+    snappy:  { maxAccel: 4500, base: 250, coldEnd: 5,  a: 1.80, b: 1.8,
+               platEnd: 20, edgeStart: 90, edgeAcc: 55, edgeP: 1.80 },
+    heavy:   { maxAccel: 2200, base: 30,  coldEnd: 14, a: 0.70, b: 3.5,
+               platEnd: 18, edgeStart: 80, edgeAcc: 25, edgeP: 3.50 },
+    unreal:  { maxAccel: 2048, base: 2048,coldEnd: 1,  a: 3.00, b: 1.0,
+               platEnd: 99, edgeStart: 99, edgeAcc: 99, edgeP: 1.00 },
+};
+
+const MAX_SPEED = 1000; // arbitrary normalized cm/s for time integration
+
+function accelAt(speedFrac, p) {
+    // speedFrac ∈ [0, 1]; returns acceleration in cm/s²
+    const colE  = p.coldEnd / 100;
+    const platE = p.platEnd / 100;
+    const edgeS = p.edgeStart / 100;
+    const edgeStartAcc = p.maxAccel * (p.edgeAcc / 100);
+
+    if (speedFrac <= colE) {
+        // cold-start: Base + (MaxAccel-Base) * (a * x)^b, x ∈ [0,1] within phase
+        const x = colE > 0 ? speedFrac / colE : 1;
+        const raw = p.base + (p.maxAccel - p.base) * Math.pow(p.a * x, p.b);
+        return Math.min(raw, p.maxAccel);
+    }
+    if (speedFrac <= platE) {
+        return p.maxAccel;
+    }
+    if (speedFrac <= edgeS) {
+        // linear falloff MaxAccel → edgeStartAcc across [platE, edgeS]
+        const t = (speedFrac - platE) / (edgeS - platE);
+        return p.maxAccel * (1 - t) + edgeStartAcc * t;
+    }
+    // edge phase: edgeStartAcc * ((1 - speed) / (1 - edgeS))^edgeP
+    if (speedFrac >= 1) return 0;
+    const u = (1 - speedFrac) / (1 - edgeS);
+    return edgeStartAcc * Math.pow(u, p.edgeP);
+}
+
+// Time-to-reach: ∫ ds / a(s) (in seconds), using small Δs steps in fraction space
+function timeToReach(targetFrac, p) {
+    const steps = 4000;
+    const ds = targetFrac / steps;
+    let t = 0;
+    for (let i = 0; i < steps; i++) {
+        const s = (i + 0.5) * ds;
+        const aMag = Math.max(accelAt(s, p), 1e-6); // cm/s²
+        const dsCm = ds * MAX_SPEED; // cm/s of velocity gained over this slice
+        t += dsCm / aMag;
+    }
+    return t;
+}
+
+// ---- ui glue -------------------------------------------------------------
+const sliders = ['maxAccel','base','coldEnd','a','b','platEnd','edgeStart','edgeAcc','edgeP'];
+
+function readParams() {
+    const p = {};
+    sliders.forEach(id => p[id] = parseFloat(document.getElementById(id).value));
+    return p;
+}
+
+function applyPreset(name) {
+    const preset = PRESETS[name];
+    if (!preset) return;
+    Object.entries(preset).forEach(([k,v]) => document.getElementById(k).value = v);
+    render();
+}
+
+function fmt(n, d=0) {
+    if (n >= 100) return n.toFixed(0);
+    if (n >= 10)  return n.toFixed(d > 0 ? d : 1);
+    return n.toFixed(2);
+}
+
+// ---- chart ---------------------------------------------------------------
+const canvas = document.getElementById('chart');
+const ctx = canvas.getContext('2d');
+
+function resizeCanvas() {
+    const r = canvas.getBoundingClientRect();
+    canvas.width  = r.width  * window.devicePixelRatio;
+    canvas.height = r.height * window.devicePixelRatio;
+    ctx.setTransform(window.devicePixelRatio,0,0,window.devicePixelRatio,0,0);
+}
+
+const PHASE_COLOR = { cold:'#6cb9ff', plateau:'#6ce0a9', linear:'#ffce6c', edge:'#ff7a7a' };
+
+function phaseOf(frac, p) {
+    if (frac <= p.coldEnd/100)   return 'cold';
+    if (frac <= p.platEnd/100)   return 'plateau';
+    if (frac <= p.edgeStart/100) return 'linear';
+    return 'edge';
+}
+
+function drawChart(p) {
+    resizeCanvas();
+    const W = canvas.getBoundingClientRect().width;
+    const H = canvas.getBoundingClientRect().height;
+    const padL = 56, padR = 56, padT = 18, padB = 36;
+    const w = W - padL - padR, h = H - padT - padB;
+
+    // background
+    ctx.clearRect(0,0,W,H);
+
+    // grid
+    ctx.strokeStyle = '#2a2e38'; ctx.lineWidth = 1;
+    ctx.fillStyle = '#8b94a6'; ctx.font = '11px system-ui';
+    for (let i=0; i<=10; i++) {
+        const x = padL + (i/10) * w;
+        ctx.beginPath(); ctx.moveTo(x, padT); ctx.lineTo(x, padT + h); ctx.stroke();
+        ctx.fillText((i*10)+'%', x-10, padT + h + 14);
+    }
+    const maxA = p.maxAccel * 1.05;
+    for (let i=0; i<=5; i++) {
+        const y = padT + (1 - i/5) * h;
+        ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(padL + w, y); ctx.stroke();
+        ctx.fillText(Math.round((i/5)*maxA), 4, y+4);
+    }
+    ctx.fillText('speed %', padL + w/2 - 20, padT + h + 28);
+    ctx.save();
+    ctx.translate(12, padT + h/2 + 20); ctx.rotate(-Math.PI/2);
+    ctx.fillText('accel (cm/s²)', 0, 0); ctx.restore();
+
+    // phase boundary verticals
+    const phaseLines = [
+        {x: p.coldEnd,   label: 'ColdEnd',   color: PHASE_COLOR.cold},
+        {x: p.platEnd,   label: 'PlatEnd',   color: PHASE_COLOR.plateau},
+        {x: p.edgeStart, label: 'EdgeStart', color: PHASE_COLOR.linear},
+    ];
+    phaseLines.forEach(l => {
+        const x = padL + (l.x/100) * w;
+        ctx.strokeStyle = l.color + '55'; ctx.setLineDash([4,4]);
+        ctx.beginPath(); ctx.moveTo(x, padT); ctx.lineTo(x, padT + h); ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.fillStyle = l.color; ctx.font = '10px system-ui';
+        ctx.fillText(l.label + ' ' + l.x + '%', x + 4, padT + 12);
+    });
+
+    // accel curve (colored per phase)
+    const steps = 600;
+    let prevPhase = null;
+    let prevX = null, prevY = null;
+    ctx.lineWidth = 2.5;
+    for (let i=0; i<=steps; i++) {
+        const frac = i / steps;
+        const a = accelAt(frac, p);
+        const x = padL + frac * w;
+        const y = padT + (1 - Math.min(a, maxA) / maxA) * h;
+        const phase = phaseOf(frac, p);
+        if (prevX !== null) {
+            ctx.strokeStyle = PHASE_COLOR[phase];
+            ctx.beginPath(); ctx.moveTo(prevX, prevY); ctx.lineTo(x, y); ctx.stroke();
+        }
+        prevX = x; prevY = y; prevPhase = phase;
+    }
+
+    // time-to-reach curve (right axis, log-ish but linear up to ~5s)
+    const tMax = 5.0; // seconds visible range
+    ctx.strokeStyle = '#8b94a677'; ctx.lineWidth = 1.5; ctx.setLineDash([3,3]);
+    ctx.beginPath();
+    const tSamples = 80;
+    for (let i=1; i<=tSamples; i++) {
+        const frac = i / tSamples * 0.999;
+        const t = timeToReach(frac, p);
+        const x = padL + frac * w;
+        const y = padT + (1 - Math.min(t, tMax) / tMax) * h;
+        if (i === 1) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    }
+    ctx.stroke(); ctx.setLineDash([]);
+
+    // right axis labels (seconds)
+    ctx.fillStyle = '#8b94a6';
+    for (let i=0; i<=5; i++) {
+        const y = padT + (1 - i/5) * h;
+        ctx.fillText((i*tMax/5).toFixed(1) + 's', padL + w + 6, y+4);
+    }
+}
+
+// ---- main ----------------------------------------------------------------
+function render() {
+    const p = readParams();
+    // labels
+    document.getElementById('v-maxAccel').textContent   = p.maxAccel.toFixed(0) + ' cm/s²';
+    document.getElementById('v-base').textContent       = p.base.toFixed(0);
+    document.getElementById('v-coldEnd').textContent    = p.coldEnd + '%';
+    document.getElementById('v-a').textContent          = p.a.toFixed(2);
+    document.getElementById('v-b').textContent          = p.b.toFixed(2);
+    document.getElementById('v-platEnd').textContent    = p.platEnd + '%';
+    document.getElementById('v-edgeStart').textContent  = p.edgeStart + '%';
+    document.getElementById('v-edgeAcc').textContent    = p.edgeAcc + '%';
+    document.getElementById('v-edgeP').textContent      = p.edgeP.toFixed(2);
+    drawChart(p);
+
+    // readouts
+    document.getElementById('r-t5').textContent  = timeToReach(0.05, p).toFixed(2) + ' s';
+    document.getElementById('r-t15').textContent = timeToReach(0.15, p).toFixed(2) + ' s';
+    document.getElementById('r-t50').textContent = timeToReach(0.50, p).toFixed(2) + ' s';
+    document.getElementById('r-t85').textContent = timeToReach(0.85, p).toFixed(2) + ' s';
+    document.getElementById('r-t99').textContent = timeToReach(0.99, p).toFixed(2) + ' s';
+    document.getElementById('r-a50').textContent = accelAt(0.50, p).toFixed(0) + ' cm/s²';
+    document.getElementById('r-a85').textContent = accelAt(0.85, p).toFixed(0) + ' cm/s²';
+    document.getElementById('r-a95').textContent = accelAt(0.95, p).toFixed(0) + ' cm/s²';
+}
+
+sliders.forEach(id => document.getElementById(id).addEventListener('input', render));
+window.addEventListener('resize', render);
+render();
+</script>
+
+</body>
+</html>

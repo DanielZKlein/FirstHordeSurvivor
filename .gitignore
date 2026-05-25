@@ -35,6 +35,19 @@ Content/Scene_Junkyard/
 Content/Scene_Warehouse/
 Content/Vefects/
 Content/VFX_Destruction/
+Content/Fab/
+Content/UnrealClaude/
+
+# Plugins (large, machine-installed)
+Plugins/
+
+# MCP configs (machine-specific paths)
+.mcp.json
+.claude/.mcp.json
+
+# Stray debug/log artifacts
+logsepdebug.txt
+nul
 
 # External actors/objects (World Partition)
 Content/__ExternalActors__/

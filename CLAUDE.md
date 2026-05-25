@@ -1,5 +1,11 @@
 # FirstHordeSurvivor - Claude Guidelines
 
+## Build / Compile Checking
+- After C++ edits, compile with the Build.bat command documented in `memory/build_command.md`
+- The build command is **compile-only** — it checks for errors and exits. It does NOT launch the editor.
+- **NEVER run `UnrealEditor.exe` or any editor-launch command after building.** The editor is already open; launching a second instance breaks Live Coding for the running session.
+- Report "Build succeeded" when done — that's the end of the build step.
+
 ## Hot Reload Notifications
 - Always tell me if changes involved .h files (requires Unreal restart) vs .cpp only (can hot reload)
 
@@ -21,6 +27,13 @@
   `C:\ObsidianVault\Primary Remote Vault\Tiny Habits\Pinball Survivors TODO.md`
 - When completing tasks, mark them done in that file. When discovering new work, add it there.
 - The TODO is organized by system (Upgrades, Weapons, Enemies, etc.) — keep that structure.
+
+## Memory & Documentation Location
+- All project memories, technical notes, and documentation go to the Obsidian vault:
+  `C:\ObsidianVault\Primary Remote Vault\Pinball Survivors\`
+- This includes: system design docs, technical setup notes, build instructions, bug logs, tuning notes
+- The TODO file is `Todo.md` in that same folder
+- Do NOT create memory files in the project directory or in `.claude/projects/memory/`
 
 ## Documentation
 - When you make changes to how systems in the game work, update the corresponding .md file or create one.
